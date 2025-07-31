@@ -172,6 +172,9 @@ with col_analysis:
     st.markdown("<div class='header-subtitle'>Menganalisis data survei preferensi shampo dari Google Sheets.</div>", unsafe_allow_html=True)
     st.markdown("---")
 
+    df = None  # Inisialisasi df di luar try block
+    column_mapping = {} # Inisialisasi column_mapping di luar try block
+
     try:
         if st.session_state.df is None:
             with st.spinner("Mengambil data dari Google Sheets..."):
@@ -179,7 +182,6 @@ with col_analysis:
             
             df_loaded.columns = [col.strip() for col in df_loaded.columns]
             
-            column_mapping = {}
             for sheet_col in df_loaded.columns:
                 for expected_col, internal_name in EXPECTED_COLUMNS.items():
                     if expected_col.strip().lower() in sheet_col.lower():
