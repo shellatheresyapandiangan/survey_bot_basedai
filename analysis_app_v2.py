@@ -9,7 +9,8 @@ import re
 import io
 
 # Token API dari user (digunakan untuk panggilan AI)
-API_KEY = "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"
+# Pastikan token ini valid untuk layanan Gemini API.
+API_KEY = "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"
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent"
 
 # --- Konfigurasi Halaman Streamlit ---
@@ -98,33 +99,42 @@ st.markdown("Aplikasi ini menganalisis data survei yang diambil langsung dari Go
 st.markdown("---")
 
 # --- Memuat Data dari Google Sheets ---
-st.subheader("Muat Data Survei dari Google Sheets")
-
 # Ganti 'SHEET_ID' dengan ID dari URL Google Sheets Anda
 # Ganti 'SHEET_NAME' jika nama sheet Anda berbeda
 SHEET_ID = "1Mp7KYO4w6GRUqvuTr4IRNeB7iy8SIZjSrLZmbEAm4GM"
 SHEET_NAME = "Sheet1" # Asumsi nama sheet, ganti jika berbeda
 google_sheets_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
 
-st.markdown("Aplikasi akan memuat data dari URL berikut:")
-st.code(google_sheets_url)
+# Mengubah nama kolom agar sesuai dengan data Google Sheets dan lebih mudah diakses.
+COLUMN_MAP = {
+    "Apa merek shampo yang Anda ketahui": "merek_diketahui",
+    "Apa merek shampo yang Anda gunakan": "merek_digunakan",
+    "Bagaimana persepsi anda terkait shampo tresemme": "persepsi_tresemme",
+    "Apa yang tidak anda sukai dari shampo clear": "tidak_suka_clear",
+    "Shampo seperti apa yang anda favoritkan? Dari bungkus, wangi, dll? Dan jelaskan alasannya?": "favorit_shampo"
+}
 
-if st.button("Mulai Analisis"):
-    try:
-        st.info("Mengambil data dari Google Sheets...")
+try:
+    with st.spinner("Mengambil data dari Google Sheets..."):
         df = pd.read_csv(google_sheets_url)
-        st.success("Data berhasil dimuat!")
-        st.dataframe(df)
+    
+    st.success("Data berhasil dimuat!")
+    st.dataframe(df)
 
-        # --- Analisis Dimulai ---
-        st.markdown("---")
-        st.header("Hasil Analisis")
+    # Mengubah nama kolom agar mudah diakses
+    df = df.rename(columns=COLUMN_MAP)
 
-        # 1. WordCloud dan Top 10 Merek
-        st.markdown("### 1. Merek Shampo yang Diketahui & Digunakan")
+    # --- Analisis Dimulai ---
+    st.markdown("---")
+    st.header("Hasil Analisis")
+
+    # 1. WordCloud dan Top 10 Merek
+    st.markdown("### 1. Merek Shampo yang Diketahui & Digunakan")
+    
+    if "merek_diketahui" in df.columns and "merek_digunakan" in df.columns:
         all_brands = (
-            ", ".join(df["Apa merek shampo yang Anda ketahui"].dropna().astype(str)) + ", " +
-            ", ".join(df["Apa merek shampo yang Anda gunakan"].dropna().astype(str))
+            ", ".join(df["merek_diketahui"].dropna().astype(str)) + ", " +
+            ", ".join(df["merek_digunakan"].dropna().astype(str))
         ).lower()
         all_brands_list = [brand.strip() for brand in re.split(r'[,;]+', all_brands) if brand.strip()]
         
@@ -135,67 +145,69 @@ if st.button("Mulai Analisis"):
             st.subheader("Top 10 Merek Shampo")
             top_10_df = pd.DataFrame(top_10_brands, columns=["Merek", "Frekuensi"])
             st.dataframe(top_10_df)
+    else:
+        st.info("Kolom 'merek_diketahui' atau 'merek_digunakan' tidak ditemukan di data.")
 
-        st.markdown("---")
+    st.markdown("---")
 
-        # 2. Analisis Persepsi TRESemmé
-        st.markdown("### 2. Persepsi Terkait Shampo TRESemmé")
-        if "Bagaimana persepsi anda terkait shampo tresemme" in df.columns and not df["Bagaimana persepsi anda terkait shampo tresemme"].isnull().all():
-            with st.spinner("Menganalisis sentimen..."):
-                df["sentimen_tresemme"] = df["Bagaimana persepsi anda terkait shampo tresemme"].apply(lambda x: analyze_sentiment(str(x), API_KEY) if pd.notna(x) else "Netral")
-            sentiment_counts = df["sentimen_tresemme"].value_counts()
-            st.bar_chart(sentiment_counts)
-            st.dataframe(sentiment_counts)
-        else:
-            st.info("Tidak ada data untuk analisis persepsi TRESemmé.")
+    # 2. Analisis Persepsi TRESemmé
+    st.markdown("### 2. Persepsi Terkait Shampo TRESemmé")
+    if "persepsi_tresemme" in df.columns and not df["persepsi_tresemme"].isnull().all():
+        with st.spinner("Menganalisis sentimen..."):
+            df["sentimen_tresemme"] = df["persepsi_tresemme"].apply(lambda x: analyze_sentiment(str(x), API_KEY) if pd.notna(x) else "Netral")
+        sentiment_counts = df["sentimen_tresemme"].value_counts()
+        st.bar_chart(sentiment_counts)
+        st.dataframe(sentiment_counts)
+    else:
+        st.info("Tidak ada data untuk analisis persepsi TRESemmé.")
 
-        st.markdown("---")
+    st.markdown("---")
 
-        # 3. Alasan Tidak Suka CLEAR
-        st.markdown("### 3. Alasan Tidak Suka Shampo CLEAR")
-        if "Apa yang tidak anda sukai dari shampo clear" in df.columns and not df["Apa yang tidak anda sukai dari shampo clear"].isnull().all():
-            text_dislikes = " ".join(df["Apa yang tidak anda sukai dari shampo clear"].dropna().astype(str))
-            create_wordcloud(text_dislikes, "WordCloud Alasan Tidak Suka Shampo CLEAR")
-        else:
-            st.info("Tidak ada data untuk analisis alasan tidak suka CLEAR.")
-        
-        st.markdown("---")
-
-        # 4. Prioritas Saat Memilih Shampo
-        st.markdown("### 4. Prioritas dalam Memilih Shampo")
-        keywords = ["bungkus", "wangi", "kemasan", "aroma", "tekstur", "harga"]
-        priority_counts = {keyword: 0 for keyword in keywords}
-        if "Shampo seperti apa yang anda favoritkan? Dari bungkus, wangi, dll? Dan jelaskan alasannya?" in df.columns and not df["Shampo seperti apa yang anda favoritkan? Dari bungkus, wangi, dll? Dan jelaskan alasannya?"].isnull().all():
-            for alasan in df["Shampo seperti apa yang anda favoritkan? Dari bungkus, wangi, dll? Dan jelaskan alasannya?"].dropna().astype(str):
-                alasan_lower = alasan.lower()
-                for keyword in keywords:
-                    if keyword in alasan_lower:
-                        priority_counts[keyword] += 1
-            priorities_df = pd.DataFrame(list(priority_counts.items()), columns=["Prioritas", "Frekuensi"])
-            st.bar_chart(priorities_df, x="Prioritas", y="Frekuensi")
-        else:
-            st.info("Tidak ada data untuk analisis prioritas.")
-
-        st.markdown("---")
-
-        # 5. Ringkasan Alasan Favorit Shampo dengan LLM
-        st.markdown("### 5. Ringkasan Alasan Favorit Shampo (AI-Powered)")
-        if "Shampo seperti apa yang anda favoritkan? Dari bungkus, wangi, dll? Dan jelaskan alasannya?" in df.columns and not df["Shampo seperti apa yang anda favoritkan? Dari bungkus, wangi, dll? Dan jelaskan alasannya?"].isnull().all():
-            all_reasons = " ".join(df["Shampo seperti apa yang anda favoritkan? Dari bungkus, wangi, dll? Dan jelaskan alasannya?"].dropna().astype(str))
-            with st.spinner("Meringkas alasan-alasan favorit dengan AI..."):
-                prompt_summary = f"""
-                Berikut adalah kumpulan alasan orang memilih shampo favorit mereka:
-                "{all_reasons}"
-                
-                Buatlah ringkasan singkat dalam bahasa Indonesia mengenai alasan-alasan utama yang sering disebutkan.
-                """
-                summary_text = call_llm(prompt_summary, API_KEY)
-                if summary_text:
-                    st.info(summary_text)
-        else:
-            st.info("Tidak ada data untuk ringkasan alasan favorit.")
+    # 3. Alasan Tidak Suka CLEAR
+    st.markdown("### 3. Alasan Tidak Suka Shampo CLEAR")
+    if "tidak_suka_clear" in df.columns and not df["tidak_suka_clear"].isnull().all():
+        text_dislikes = " ".join(df["tidak_suka_clear"].dropna().astype(str))
+        create_wordcloud(text_dislikes, "WordCloud Alasan Tidak Suka Shampo CLEAR")
+    else:
+        st.info("Tidak ada data untuk analisis alasan tidak suka CLEAR.")
     
-    except requests.exceptions.HTTPError as e:
-        st.error(f"Gagal memuat data dari Google Sheets. Mohon pastikan link publik dan nama sheet sudah benar. Kesalahan: {e}")
-    except Exception as e:
-        st.error(f"Terjadi kesalahan saat memproses data: {e}")
+    st.markdown("---")
+
+    # 4. Prioritas Saat Memilih Shampo
+    st.markdown("### 4. Prioritas dalam Memilih Shampo")
+    keywords = ["bungkus", "wangi", "kemasan", "aroma", "tekstur", "harga"]
+    priority_counts = {keyword: 0 for keyword in keywords}
+    if "favorit_shampo" in df.columns and not df["favorit_shampo"].isnull().all():
+        for alasan in df["favorit_shampo"].dropna().astype(str):
+            alasan_lower = alasan.lower()
+            for keyword in keywords:
+                if keyword in alasan_lower:
+                    priority_counts[keyword] += 1
+        priorities_df = pd.DataFrame(list(priority_counts.items()), columns=["Prioritas", "Frekuensi"])
+        st.bar_chart(priorities_df, x="Prioritas", y="Frekuensi")
+    else:
+        st.info("Tidak ada data untuk analisis prioritas.")
+
+    st.markdown("---")
+
+    # 5. Ringkasan Alasan Favorit Shampo dengan LLM
+    st.markdown("### 5. Ringkasan Alasan Favorit Shampo (AI-Powered)")
+    if "favorit_shampo" in df.columns and not df["favorit_shampo"].isnull().all():
+        all_reasons = " ".join(df["favorit_shampo"].dropna().astype(str))
+        with st.spinner("Meringkas alasan-alasan favorit dengan AI..."):
+            prompt_summary = f"""
+            Berikut adalah kumpulan alasan orang memilih shampo favorit mereka:
+            "{all_reasons}"
+            
+            Buatlah ringkasan singkat dalam bahasa Indonesia mengenai alasan-alasan utama yang sering disebutkan.
+            """
+            summary_text = call_llm(prompt_summary, API_KEY)
+            if summary_text:
+                st.info(summary_text)
+    else:
+        st.info("Tidak ada data untuk ringkasan alasan favorit.")
+
+except requests.exceptions.HTTPError as e:
+    st.error(f"Gagal memuat data dari Google Sheets. Mohon pastikan link publik dan nama sheet sudah benar. Kesalahan: {e}")
+except Exception as e:
+    st.error(f"Terjadi kesalahan saat memproses data: {e}")
