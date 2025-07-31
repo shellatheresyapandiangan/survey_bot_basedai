@@ -10,34 +10,27 @@ import io
 import time
 
 # Token API dari user (digunakan untuk panggilan AI)
-#
-# PENTING: Anda harus mengganti nilai ini dengan token Groq API yang valid dari akun Anda.
-# Token ini adalah token Groq.
-API_KEY = "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"
-# URL API Groq yang kompatibel dengan format OpenAI
-GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+# PENTING: Token ini sudah diperbarui, pastikan memiliki akses ke Groq API.
+API_KEY = "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"
+# URL API Groq yang kompatibel (periksa dokumentasi resmi untuk endpoint terbaru)
+GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"  # Verify this URL
 
 # --- Konfigurasi Halaman Streamlit ---
 st.set_page_config(
-    page_title="Analisis Data Surveai Shampo",
-    page_icon="�",
+    page_title="Analisis Data Survei Shampo",
+    page_icon="🧴",
     layout="wide"
 )
 
 # --- Fungsi untuk memanggil model AI (Groq API) ---
 def call_llm(prompt, api_key):
-    """
-    Memanggil Groq API untuk mendapatkan ringkasan atau analisis.
-    """
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
     payload = {
-        "model": "gemma-7b-it", # Menggunakan model yang tersedia di Groq
-        "messages": [
-            {"role": "user", "content": prompt}
-        ]
+        "model": "gemma-7b-it",  # Pastikan model ini didukung oleh Groq
+        "messages": [{"role": "user", "content": prompt}]
     }
     
     try:
@@ -46,16 +39,13 @@ def call_llm(prompt, api_key):
         result = response.json()
         return result["choices"][0]["message"]["content"]
     except requests.exceptions.HTTPError as http_err:
-        st.error(f"Kesalahan HTTP: {http_err} - Pastikan token API valid dan memiliki akses ke Groq API.")
+        st.error(f"Kesalahan HTTP: {http_err} - Detail: {response.text} - Pastikan token API valid dan endpoint benar.")
     except (requests.exceptions.RequestException, KeyError, IndexError) as err:
         st.error(f"Terjadi kesalahan saat memproses respons API: {err}")
     return "Respons tidak dapat diproses."
 
 # --- Fungsi untuk membuat WordCloud ---
 def create_wordcloud(text, title):
-    """
-    Membuat dan menampilkan WordCloud dari teks yang diberikan.
-    """
     wordcloud = WordCloud(
         width=800, 
         height=400, 
@@ -72,9 +62,6 @@ def create_wordcloud(text, title):
 
 # --- Fungsi untuk menganalisis sentimen ---
 def analyze_sentiment(text, api_key):
-    """
-    Menggunakan LLM untuk mengkategorikan sentimen.
-    """
     prompt = f"""
     Klasifikasikan sentimen dari teks berikut:
     "{text}"
@@ -83,15 +70,8 @@ def analyze_sentiment(text, api_key):
     Berikan hanya satu kata dari kategori tersebut sebagai jawaban.
     """
     response = call_llm(prompt, api_key)
-    
-    if response:
-        sentiment = response.strip().upper()
-        if "BAIK" in sentiment:
-            return "Baik"
-        elif "BURUK" in sentiment:
-            return "Buruk"
-        elif "NETRAL" in sentiment:
-            return "Netral"
+    if response and any(sent in response.strip().upper() for sent in ["BAIK", "BURUK", "NETRAL"]):
+        return response.strip().capitalize()
     return "Netral"
 
 # --- Judul Aplikasi ---
@@ -100,13 +80,10 @@ st.markdown("Aplikasi ini menganalisis data survei yang diambil langsung dari Go
 st.markdown("---")
 
 # --- Memuat Data dari Google Sheets ---
-# Ganti 'SHEET_ID' dengan ID dari URL Google Sheets Anda
-# Ganti 'SHEET_NAME' jika nama sheet Anda berbeda
 SHEET_ID = "1Mp7KYO4w6GRUqvuTr4IRNeB7iy8SIZjSrLZmbEAm4GM"
 SHEET_NAME = "Sheet1"
 google_sheets_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
 
-# Mengubah nama kolom agar sesuai dengan data Google Sheets
 EXPECTED_COLUMNS = {
     "Apa merek shampo yang Anda ketahui": "merek_diketahui",
     "Apa merek shampo yang Anda gunakan": "merek_digunakan",
@@ -119,32 +96,24 @@ try:
     with st.spinner("Mengambil data dari Google Sheets..."):
         df = pd.read_csv(google_sheets_url)
     
-    # Normalisasi nama kolom untuk menghindari kesalahan spasi atau karakter tak terlihat
     df.columns = [col.strip() for col in df.columns]
-    
-    # Mencari nama kolom yang cocok dari EXPECTED_COLUMNS
     column_mapping = {}
     for sheet_col in df.columns:
         for expected_col, internal_name in EXPECTED_COLUMNS.items():
             if expected_col.strip().lower() in sheet_col.lower():
                 column_mapping[sheet_col] = internal_name
     
-    # Mengubah nama kolom agar mudah diakses
     df = df.rename(columns=column_mapping)
-
-    # Memeriksa apakah semua kolom yang diharapkan berhasil dipetakan
     mapped_columns = set(column_mapping.values())
     if not all(col in mapped_columns for col in EXPECTED_COLUMNS.values()):
-        st.error("Terjadi kesalahan saat memproses data: Tidak semua kolom survei ditemukan. Mohon periksa kembali nama kolom di Google Sheets Anda.")
+        st.error("Tidak semua kolom survei ditemukan. Mohon periksa nama kolom di Google Sheets.")
         st.stop()
-        
-    # --- Analisis Dimulai ---
+
     st.markdown("---")
     st.header("Hasil Analisis")
 
     # 1. WordCloud dan Top 10 Merek
     st.markdown("### 1. Merek Shampo yang Diketahui & Digunakan")
-    
     all_brands = (
         ", ".join(df["merek_diketahui"].dropna().astype(str)) + ", " +
         ", ".join(df["merek_digunakan"].dropna().astype(str))
@@ -155,7 +124,6 @@ try:
         create_wordcloud(" ".join(all_brands_list), "WordCloud Merek Shampo Terkenal")
         brand_counts = Counter(all_brands_list)
         top_10_brands = brand_counts.most_common(10)
-        st.subheader("Top 10 Merek Shampo")
         top_10_df = pd.DataFrame(top_10_brands, columns=["Merek", "Frekuensi"])
         st.dataframe(top_10_df)
     else:
@@ -183,13 +151,12 @@ try:
         create_wordcloud(text_dislikes, "WordCloud Alasan Tidak Suka Shampo CLEAR")
     else:
         st.info("Tidak ada data untuk analisis alasan tidak suka CLEAR.")
-    
+
     st.markdown("---")
 
     # 4. Prioritas Saat Memilih Shampo
     st.markdown("### 4. Prioritas dalam Memilih Shampo")
     if "favorit_shampo" in df.columns and not df["favorit_shampo"].isnull().all():
-        # Memetakan kata kunci dengan prioritas
         keywords = ["bungkus", "wangi", "kemasan", "aroma", "tekstur", "harga"]
         priority_counts = {keyword: 0 for keyword in keywords}
         
@@ -200,7 +167,7 @@ try:
                     priority_counts[keyword] += 1
         
         priorities_df = pd.DataFrame(list(priority_counts.items()), columns=["Prioritas", "Frekuensi"])
-        st.bar_chart(priorities_df, x="Prioritas", y="Frekuensi")
+        st.bar_chart(priorities_df.set_index("Prioritas"))
     else:
         st.info("Tidak ada data untuk analisis prioritas.")
 
