@@ -261,20 +261,15 @@ with col_analysis:
             else:
                 st.info("Tidak ada data untuk analisis alasan tidak suka CLEAR.")
 
-        with st.expander("4. Analisis Mendalam: Alasan Memilih Shampo Favorit (AI-Powered)"):
+        with st.expander("4. Analisis Mendalam: Alasan Memilih Shampo Favorit"):
             if "favorit_shampo" in df.columns and not df["favorit_shampo"].isnull().all():
                 alasan_list = df["favorit_shampo"].dropna().astype(str).tolist()
                 all_reasons = " ".join(alasan_list)
                 
                 if len(all_reasons.split()) >= 5: # Butuh beberapa kata untuk analisis
-                    with st.spinner("Membuat WordCloud dan meringkas alasan dengan AI..."):
+                    with st.spinner("Membuat WordCloud dan menganalisis kata kunci..."):
                         # WordCloud
                         create_wordcloud(all_reasons, "WordCloud Faktor Penentu Shampo Favorit")
-
-                        # Ringkasan AI
-                        st.markdown("### Ringkasan Insight dari AI:")
-                        summary_text = generate_summary(all_reasons)
-                        st.info(summary_text)
 
                         # Analisis Kata Kunci
                         keywords = ["wangi", "aroma", "lembut", "harga", "kemasan", "tekstur", "busa", "efektif", "alami", "rambut rontok", "ketombe"]
@@ -312,39 +307,45 @@ with col_chat:
             st.markdown(prompt)
 
         with st.chat_message("assistant"):
-            with st.spinner("AI sedang menganalisis..."):
-                llm = get_llm()
-                if llm and st.session_state.data_loaded_successfully:
-                    # Menggunakan seluruh data sebagai konteks untuk AI
-                    data_text = st.session_state.df.to_string()
-                    
-                    # Template prompt yang lebih terstruktur
-                    prompt_template_qa = """
-                    Anda adalah seorang analis pasar yang ahli. Berdasarkan data survei shampo berikut, jawab pertanyaan pengguna.
-                    Fokuskan jawaban Anda pada insight pemasaran, persepsi konsumen, dan potensi strategi.
-                    
-                    DATA SURVEI:
-                    ---
-                    {data_text}
-                    ---
-                    
-                    PERTANYAAN PENGGUNA:
-                    "{prompt}"
-                    
-                    Berikan jawaban yang ringkas, jelas, dan informatif dalam Bahasa Indonesia.
-                    """
-                    
-                    chain = PromptTemplate.from_template(prompt_template_qa) | llm
-                    
-                    # Memperbaiki pemanggilan invoke dengan kunci yang sesuai
-                    ai_answer = chain.invoke({
-                        "data_text": data_text, 
-                        "prompt": prompt
-                    }).content
-                    
-                    st.markdown(ai_answer)
-                    st.session_state.messages.append({"role": "assistant", "content": ai_answer})
-                elif not st.session_state.data_loaded_successfully:
-                    st.error("Tidak dapat menjawab karena data gagal dimuat. Mohon perbaiki masalah pada pemuatan data terlebih dahulu.")
-                else:
-                    st.error("Gagal terhubung dengan model AI. Mohon periksa kembali API Key Anda.")
+            # Periksa sapaan sederhana terlebih dahulu
+            if prompt.strip().lower() in ["hi", "halo", "hai"]:
+                ai_answer = "Halo! Ada yang bisa saya bantu terkait analisis data survei ini?"
+                st.markdown(ai_answer)
+                st.session_state.messages.append({"role": "assistant", "content": ai_answer})
+            else:
+                with st.spinner("AI sedang menganalisis..."):
+                    llm = get_llm()
+                    if llm and st.session_state.data_loaded_successfully:
+                        # Menggunakan seluruh data sebagai konteks untuk AI
+                        data_text = st.session_state.df.to_string()
+                        
+                        # Template prompt yang lebih terstruktur
+                        prompt_template_qa = """
+                        Anda adalah seorang analis pasar yang ahli. Berdasarkan data survei shampo berikut, jawab pertanyaan pengguna.
+                        Fokuskan jawaban Anda pada insight pemasaran, persepsi konsumen, dan potensi strategi.
+                        
+                        DATA SURVEI:
+                        ---
+                        {data_text}
+                        ---
+                        
+                        PERTANYAAN PENGGUNA:
+                        "{prompt}"
+                        
+                        Berikan jawaban yang ringkas, jelas, dan informatif dalam Bahasa Indonesia.
+                        """
+                        
+                        chain = PromptTemplate.from_template(prompt_template_qa) | llm
+                        
+                        # Memperbaiki pemanggilan invoke dengan kunci yang sesuai
+                        ai_answer = chain.invoke({
+                            "data_text": data_text, 
+                            "prompt": prompt
+                        }).content
+                        
+                        st.markdown(ai_answer)
+                        st.session_state.messages.append({"role": "assistant", "content": ai_answer})
+                    elif not st.session_state.data_loaded_successfully:
+                        st.error("Tidak dapat menjawab karena data gagal dimuat. Mohon perbaiki masalah pada pemuatan data terlebih dahulu.")
+                    else:
+                        st.error("Gagal terhubung dengan model AI. Mohon periksa kembali API Key Anda.")
