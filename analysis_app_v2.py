@@ -1,7 +1,7 @@
 # ==============================================================================
 # Aplikasi Analisis Data Survei Shampo
 # Menggunakan LangChain & Groq API
-# Versi: Desain Profesional
+# Versi: Desain Profesional v2
 # ==============================================================================
 
 # --- 1. Impor Library ---
@@ -71,6 +71,7 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
         border: 1px solid #E2E8F0;
         transition: transform 0.3s ease, box-shadow 0.3s ease;
+        height: 100%; /* Membuat kartu memiliki tinggi yang sama */
     }
     .kpi-card:hover {
         transform: translateY(-5px);
@@ -232,9 +233,14 @@ with col_chat:
 with col_analysis:
     st.markdown("<div class='main-column'>", unsafe_allow_html=True)
 
+    # --- Judul Utama ---
+    st.markdown("<div class='header-title'>Dashboard Analisis Survei Shampo</div>", unsafe_allow_html=True)
+    st.markdown("<div class='header-subtitle'>Ringkasan Eksekutif dari Preferensi Konsumen</div>", unsafe_allow_html=True)
+
+    # --- Logika Pemuatan Data ---
     if st.session_state.df is None:
         try:
-            with st.spinner("Mengambil data dari Google Sheets..."):
+            with st.spinner("Menghubungkan ke sumber data..."):
                 df_loaded = pd.read_csv(GOOGLE_SHEETS_URL)
                 df_loaded.columns = [col.strip() for col in df_loaded.columns]
                 column_mapping = {sheet_col: internal_name for sheet_col in df_loaded.columns for expected_col, internal_name in EXPECTED_COLUMNS.items() if expected_col.strip().lower() in sheet_col.lower()}
@@ -252,11 +258,8 @@ with col_analysis:
     
     df = st.session_state.df
 
+    # --- Tampilkan Konten Dashboard Setelah Data Siap ---
     if st.session_state.data_loaded_successfully:
-        # --- Judul Utama ---
-        st.markdown("<div class='header-title'>Dashboard Analisis Survei Shampo</div>", unsafe_allow_html=True)
-        st.markdown("<div class='header-subtitle'>Ringkasan Eksekutif dari Preferensi Konsumen</div>", unsafe_allow_html=True)
-
         # --- Bagian Kartu KPI ---
         kpi1, kpi2, kpi3 = st.columns(3)
         
@@ -297,7 +300,7 @@ with col_analysis:
         """, unsafe_allow_html=True)
         
         # --- Bagian Analisis Detail ---
-        st.header("Analisis Mendalam", anchor=False, divider="rainbow")
+        st.markdown("<hr style='margin-top: 2rem; margin-bottom: 1.5rem; border: 1px solid #E2E8F0;'>", unsafe_allow_html=True)
         
         with st.expander("⭐ Merek Terpopuler: Dikenal vs Digunakan", expanded=True):
             if all_brands_list:
