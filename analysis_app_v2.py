@@ -1,6 +1,7 @@
 # ==============================================================================
 # Aplikasi Analisis Data Survei Shampo
 # Menggunakan LangChain & Groq API
+# Versi: Diperbaiki dan Disempurnakan
 # ==============================================================================
 
 # --- 1. Impor Library ---
@@ -9,11 +10,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from wordcloud import WordCloud
 from collections import Counter
-import requests
 import re
-import io
-import time
-import json
 from langchain_groq import ChatGroq
 from langchain.prompts import PromptTemplate
 
@@ -81,93 +78,69 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Token API Groq yang Anda berikan
+# --- 3. Konfigurasi Model AI (LLM) ---
+# CATATAN: Menyimpan API key langsung di kode tidak disarankan untuk produksi.
+# Sebaiknya gunakan st.secrets untuk keamanan.
 GROQ_API_KEY = "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"
 
-# --- 3. Fungsi Inti ---
 @st.cache_resource
 def get_llm():
+    """Memuat dan menyimpan instance model AI dalam cache."""
     try:
         return ChatGroq(temperature=0, model_name="llama3-8b-8192", groq_api_key=GROQ_API_KEY)
     except Exception as e:
         st.error(f"Gagal memuat model AI. Pastikan GROQ_API_KEY Anda sudah benar. Error: {e}")
         return None
 
+# --- 4. Fungsi-fungsi Inti & Analisis ---
+
 def generate_summary(text_content):
+    """Membuat ringkasan dari teks menggunakan AI."""
     llm = get_llm()
-    if not llm or not text_content: return "Gagal membuat ringkasan."
+    if not llm or not text_content:
+        return "Gagal membuat ringkasan karena model AI tidak tersedia atau tidak ada teks."
     
     prompt = PromptTemplate.from_template(
-        "Anda adalah analis riset AI. Buat ringkasan komprehensif dari teks berikut dalam format poin-poin (bullet points) dalam Bahasa Indonesia. Fokus pada ide utama dan poin-poin kunci.\n\nTeks:\n---\n{{text}}\n---"
+        "Anda adalah analis riset AI. Buat ringkasan komprehensif dari teks berikut dalam format poin-poin (bullet points) dalam Bahasa Indonesia. Fokus pada ide utama dan poin-poin kunci.\n\nTeks:\n---\n{text}\n---"
     )
     chain = prompt | llm
+    # Membatasi panjang teks untuk efisiensi API
     summary = chain.invoke({"text": text_content[:12000]}).content
     return summary
 
 def analyze_sentiment(text):
+    """Menganalisis sentimen teks menjadi 'Baik', 'Buruk', atau 'Netral'."""
     llm = get_llm()
-    if not llm: return "Model AI tidak tersedia."
+    if not llm: return "Netral" # Fallback jika model gagal
 
     prompt = PromptTemplate.from_template(
         "Klasifikasikan sentimen dari teks berikut: '{text}'. Pilih salah satu dari kategori berikut: 'Baik', 'Buruk', atau 'Netral'. Berikan hanya satu kata dari kategori tersebut sebagai jawaban."
     )
     chain = prompt | llm
-    response = chain.invoke({"text": text}).content
-
-    if response:
+    try:
+        response = chain.invoke({"text": text}).content
         sentiment = response.strip().upper()
         if "BAIK" in sentiment:
             return "Baik"
         elif "BURUK" in sentiment:
             return "Buruk"
-        elif "NETRAL" in sentiment:
+        else:
             return "Netral"
-    return "Netral"
-        with st.expander("5. Ringkasan Alasan Favorit Shampo (AI-Powered)"):
-            if "favorit_shampo" in df.columns and not df["favorit_shampo"].isnull().all():
-                alasan_list = df["favorit_shampo"].dropna().astype(str).tolist()
-                all_reasons = " ".join(alasan_list)
-                total_words = len(all_reasons.split())
+    except Exception:
+        return "Netral" # Fallback jika terjadi error pada API call
 
-                if total_words >= 3:
-                    with st.spinner("Membuat WordCloud dan meringkas alasan..."):
-                        # WordCloud
-                        create_wordcloud(all_reasons, "WordCloud Alasan Favorit Shampo")
-
-                        # Ringkasan AI
-                        summary_text = generate_summary(all_reasons)
-                        if summary_text:
-                            st.markdown("### Ringkasan AI:")
-                            st.info(summary_text)
-                        else:
-                            st.warning("AI gagal membuat ringkasan.")
-
-                        # Analisis Kata Kunci
-                        keywords = ["bungkus", "wangi", "kemasan", "aroma", "tekstur", "harga", "lembut", "busanya", "tidak lengket", "efektif", "alami"]
-                        keyword_counts = {key: all_reasons.lower().count(key) for key in keywords if key in all_reasons.lower()}
-                        if keyword_counts:
-                            keyword_df = pd.DataFrame(list(keyword_counts.items()), columns=["Kata Kunci", "Frekuensi"]).sort_values(by="Frekuensi", ascending=False)
-                            st.markdown("### Kata Kunci yang Paling Sering Muncul:")
-                            st.dataframe(keyword_df)
-                else:
-                    st.warning("Data alasan terlalu sedikit untuk membuat WordCloud atau ringkasan AI.")
-                    st.markdown("### Daftar Alasan yang Tersedia:")
-                    for i, alasan in enumerate(alasan_list, 1):
-                        st.markdown(f"{i}. {alasan}")
-            else:
-                st.info("Tidak ada data untuk ringkasan alasan favorit.")
-
-# --- Fungsi-fungsi Visualisasi ---
 def create_wordcloud(text, title):
-    """
-    Membuat dan menampilkan WordCloud dari teks yang diberikan.
-    """
+    """Membuat dan menampilkan WordCloud dari teks yang diberikan."""
+    if not text or not text.strip():
+        st.warning(f"Tidak ada data teks yang cukup untuk membuat '{title}'.")
+        return
+
     wordcloud = WordCloud(
-        width=800, 
-        height=400, 
-        background_color="white", 
+        width=800,
+        height=400,
+        background_color="white",
         max_words=50,
-        regexp=r"\w+"
+        regexp=r"\w[\w']+" # Regex yang lebih baik untuk menangkap kata
     ).generate(text)
     
     fig, ax = plt.subplots(figsize=(10, 5))
@@ -176,13 +149,12 @@ def create_wordcloud(text, title):
     st.subheader(title)
     st.pyplot(fig)
 
-
-# --- Memuat Data dari Google Sheets ---
+# --- 5. Memuat Data & Konfigurasi Kolom ---
 SHEET_ID = "1Mp7KYO4w6GRUqvuTr4IRNeB7iy8SIZjSrLZmbEAm4GM"
 SHEET_NAME = "Sheet1"
-google_sheets_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
+GOOGLE_SHEETS_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
 
-# Mengubah nama kolom agar sesuai dengan data Google Sheets
+# Pemetaan nama kolom dari Google Sheet ke nama internal yang lebih pendek
 EXPECTED_COLUMNS = {
     "Apa merek shampo yang Anda ketahui": "merek_diketahui",
     "Apa merek shampo yang Anda gunakan": "merek_digunakan",
@@ -191,76 +163,89 @@ EXPECTED_COLUMNS = {
     "Shampo seperti apa yang anda favoritkan? Dari bungkus, wangi, dll? Dan jelaskan alasannya?": "favorit_shampo"
 }
 
-# --- Inisialisasi Session State ---
+# --- 6. Inisialisasi Session State ---
 if 'messages' not in st.session_state:
     st.session_state.messages = []
 if 'df' not in st.session_state:
     st.session_state.df = None
+if 'data_loaded_successfully' not in st.session_state:
+    st.session_state.data_loaded_successfully = False
 
-# --- Main App Logic ---
+# --- 7. Logika Utama Aplikasi ---
 col_chat, col_analysis = st.columns([1, 2], gap="large")
 
+# === Kolom Analisis Data (Kanan) ===
 with col_analysis:
     st.markdown("<div class='header-title'>Analisis Data Survei Shampo</div>", unsafe_allow_html=True)
-    st.markdown("<div class='header-subtitle'>Menganalisis data survei preferensi shampo dari Google Sheets.</div>", unsafe_allow_html=True)
+    st.markdown("<div class='header-subtitle'>Menganalisis data survei preferensi shampo dari Google Sheets secara real-time.</div>", unsafe_allow_html=True)
     st.markdown("---")
 
-    df = None  # Inisialisasi df di luar try block
-    column_mapping = {} # Inisialisasi column_mapping di luar try block
-
-    try:
-        if st.session_state.df is None:
+    # Memuat data hanya sekali dan menyimpannya di session state
+    if st.session_state.df is None:
+        try:
             with st.spinner("Mengambil data dari Google Sheets..."):
-                df_loaded = pd.read_csv(google_sheets_url)
-            
-            df_loaded.columns = [col.strip() for col in df_loaded.columns]
-            
-            for sheet_col in df_loaded.columns:
-                for expected_col, internal_name in EXPECTED_COLUMNS.items():
-                    if expected_col.strip().lower() in sheet_col.lower():
-                        column_mapping[sheet_col] = internal_name
-            
-            df_loaded = df_loaded.rename(columns=column_mapping)
-            st.session_state.df = df_loaded
+                df_loaded = pd.read_csv(GOOGLE_SHEETS_URL)
+                
+                # Membersihkan nama kolom dari spasi ekstra
+                df_loaded.columns = [col.strip() for col in df_loaded.columns]
+                
+                # Membuat pemetaan kolom secara dinamis dan fleksibel
+                column_mapping = {}
+                for sheet_col in df_loaded.columns:
+                    for expected_col, internal_name in EXPECTED_COLUMNS.items():
+                        if expected_col.strip().lower() in sheet_col.lower():
+                            column_mapping[sheet_col] = internal_name
+                
+                df_loaded = df_loaded.rename(columns=column_mapping)
+                st.session_state.df = df_loaded
+                
+                # Validasi apakah semua kolom yang diharapkan berhasil dipetakan
+                mapped_columns = set(df_loaded.columns)
+                if all(col in mapped_columns for col in EXPECTED_COLUMNS.values()):
+                    st.session_state.data_loaded_successfully = True
+                else:
+                    missing_cols = [k for k, v in EXPECTED_COLUMNS.items() if v not in mapped_columns]
+                    st.error(f"Gagal memetakan kolom berikut dari Google Sheets: {', '.join(missing_cols)}. Mohon periksa nama kolom di file sumber.")
+                    st.stop()
 
-        df = st.session_state.df
-        
-        mapped_columns = set(column_mapping.values())
-        if not all(col in mapped_columns for col in EXPECTED_COLUMNS.values()):
-            st.error("Terjadi kesalahan saat memproses data: Tidak semua kolom survei ditemukan. Mohon periksa kembali nama kolom di Google Sheets Anda.")
+        except Exception as e:
+            st.error(f"Gagal memuat atau memproses data dari Google Sheets. Pastikan link bersifat publik dan nama sheet benar. Kesalahan: {e}")
             st.stop()
-            
-        # --- Analisis Dimulai ---
-        st.markdown("---")
-        
-        with st.expander("1. Merek Shampo yang Diketahui & Digunakan"):
-            all_brands = (
+    
+    df = st.session_state.df
+
+    # Tampilkan analisis hanya jika data berhasil dimuat
+    if st.session_state.data_loaded_successfully:
+        with st.expander("1. Merek Shampo yang Paling Dikenal & Digunakan", expanded=True):
+            all_brands_text = (
                 ", ".join(df["merek_diketahui"].dropna().astype(str)) + ", " +
                 ", ".join(df["merek_digunakan"].dropna().astype(str))
             ).lower()
-            all_brands_list = [brand.strip() for brand in re.split(r'[,;]+', all_brands) if brand.strip()]
+            
+            all_brands_list = [brand.strip() for brand in re.split(r'[,;]+', all_brands_text) if brand.strip()]
             
             if all_brands_list:
-                create_wordcloud(" ".join(all_brands_list), "WordCloud Merek Shampo Terkenal")
+                create_wordcloud(" ".join(all_brands_list), "WordCloud Merek Shampo")
                 
                 brand_counts = Counter(all_brands_list)
                 top_10_brands = brand_counts.most_common(10)
                 
-                st.subheader("Top 10 Merek Shampo")
+                st.subheader("Top 10 Merek Shampo Paling Populer")
                 top_10_df = pd.DataFrame(top_10_brands, columns=["Merek", "Frekuensi"])
-                st.dataframe(top_10_df)
+                st.dataframe(top_10_df, use_container_width=True)
             else:
                 st.info("Tidak ada data merek untuk dianalisis.")
 
         with st.expander("2. Persepsi Terkait Shampo TRESemmé (AI-Powered)"):
             if "persepsi_tresemme" in df.columns and not df["persepsi_tresemme"].isnull().all():
-                with st.spinner("Menganalisis sentimen..."):
+                with st.spinner("Menganalisis sentimen TRESemmé..."):
                     df["sentimen_tresemme"] = df["persepsi_tresemme"].apply(lambda x: analyze_sentiment(str(x)) if pd.notna(x) else "Netral")
+                
                 sentiment_counts = df["sentimen_tresemme"].value_counts()
                 
                 fig, ax = plt.subplots()
-                sentiment_counts.plot(kind='bar', color=['#4CAF50', '#f44336', '#9e9e9e'])
-                ax.set_title("Analisis Sentimen TRESemmé")
+                sentiment_counts.plot(kind='bar', ax=ax, color=['#4CAF50', '#f44336', '#9e9e9e'])
+                ax.set_title("Distribusi Sentimen Terhadap TRESemmé")
                 ax.set_ylabel("Jumlah Responden")
                 ax.tick_params(axis='x', rotation=0)
                 st.pyplot(fig)
@@ -268,62 +253,59 @@ with col_analysis:
                 st.dataframe(sentiment_counts)
             else:
                 st.info("Tidak ada data untuk analisis persepsi TRESemmé.")
-        
-        with st.expander("3. Alasan Tidak Suka CLEAR"):
+
+        with st.expander("3. Poin Negatif Mengenai Shampo CLEAR"):
             if "tidak_suka_clear" in df.columns and not df["tidak_suka_clear"].isnull().all():
                 text_dislikes = " ".join(df["tidak_suka_clear"].dropna().astype(str))
                 create_wordcloud(text_dislikes, "WordCloud Alasan Tidak Suka Shampo CLEAR")
             else:
                 st.info("Tidak ada data untuk analisis alasan tidak suka CLEAR.")
-        
-        with st.expander("4. Prioritas dalam Memilih Shampo"):
-            if "favorit_shampo" in df.columns and not df["favorit_shampo"].isnull().all():
-                keywords = ["bungkus", "wangi", "kemasan", "aroma", "tekstur", "harga"]
-                priority_counts = {keyword: 0 for keyword in keywords}
-                
-                for alasan in df["favorit_shampo"].dropna().astype(str):
-                    alasan_lower = alasan.lower()
-                    for keyword in keywords:
-                        if keyword in alasan_lower:
-                            priority_counts[keyword] += 1
-                
-                priorities_df = pd.DataFrame(list(priority_counts.items()), columns=["Prioritas", "Frekuensi"])
-                
-                fig, ax = plt.subplots(figsize=(10, 6))
-                ax.bar(priorities_df["Prioritas"], priorities_df["Frekuensi"], color='#64b5f6')
-                ax.set_title("Prioritas dalam Memilih Shampo", fontsize=16)
-                ax.set_ylabel("Frekuensi", fontsize=12)
-                ax.tick_params(axis='x', rotation=45)
-                st.pyplot(fig)
-            else:
-                st.info("Tidak ada data untuk analisis prioritas.")
 
-        with st.expander("5. Ringkasan Alasan Favorit Shampo (AI-Powered)"):
+        with st.expander("4. Analisis Mendalam: Alasan Memilih Shampo Favorit (AI-Powered)"):
             if "favorit_shampo" in df.columns and not df["favorit_shampo"].isnull().all():
-                all_reasons = " ".join(df["favorit_shampo"].dropna().astype(str))
-                with st.spinner("Meringkas alasan-alasan favorit dengan AI..."):
-                    summary_text = generate_summary(all_reasons)
-                    if summary_text:
+                alasan_list = df["favorit_shampo"].dropna().astype(str).tolist()
+                all_reasons = " ".join(alasan_list)
+                
+                if len(all_reasons.split()) >= 5: # Butuh beberapa kata untuk analisis
+                    with st.spinner("Membuat WordCloud dan meringkas alasan dengan AI..."):
+                        # WordCloud
+                        create_wordcloud(all_reasons, "WordCloud Faktor Penentu Shampo Favorit")
+
+                        # Ringkasan AI
+                        st.markdown("### Ringkasan Insight dari AI:")
+                        summary_text = generate_summary(all_reasons)
                         st.info(summary_text)
+
+                        # Analisis Kata Kunci
+                        keywords = ["wangi", "aroma", "lembut", "harga", "kemasan", "tekstur", "busa", "efektif", "alami", "rambut rontok", "ketombe"]
+                        keyword_counts = {key: all_reasons.lower().count(key) for key in keywords}
+                        
+                        # Filter kata kunci yang muncul setidaknya sekali
+                        filtered_counts = {k: v for k, v in keyword_counts.items() if v > 0}
+
+                        if filtered_counts:
+                            keyword_df = pd.DataFrame(list(filtered_counts.items()), columns=["Faktor Penentu", "Frekuensi"]).sort_values(by="Frekuensi", ascending=False)
+                            st.markdown("### Frekuensi Penyebutan Faktor Penentu:")
+                            st.dataframe(keyword_df, use_container_width=True)
+                else:
+                    st.warning("Data alasan terlalu sedikit untuk dianalisis secara mendalam.")
+                    st.markdown("##### Daftar Alasan yang Diberikan:")
+                    for i, alasan in enumerate(alasan_list, 1):
+                        st.markdown(f"- {alasan}")
             else:
-                st.info("Tidak ada data untuk ringkasan alasan favorit.")
+                st.info("Tidak ada data untuk analisis alasan favorit.")
 
-    except requests.exceptions.HTTPError as e:
-        st.error(f"Gagal memuat data dari Google Sheets. Mohon pastikan link publik dan nama sheet sudah benar. Kesalahan: {e}")
-    except Exception as e:
-        st.error(f"Terjadi kesalahan saat memproses data: {e}. Mohon periksa kembali struktur kolom di Google Sheets Anda.")
-
+# === Kolom Chatbot (Kiri) ===
 with col_chat:
     st.title("Asisten Analis Pemasaran")
-    st.markdown("Halo! Saya siap membantu Anda menganalisis data survei shampo ini. Silakan ajukan pertanyaan seputar analisis pasar, persepsi konsumen, atau potensi merek.")
+    st.markdown("Ajukan pertanyaan tentang data survei ini untuk mendapatkan insight.")
 
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-
+    # Tampilkan riwayat percakapan
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
+    # Input dari pengguna
     if prompt := st.chat_input("Tanya AI tentang data survei..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
@@ -332,35 +314,37 @@ with col_chat:
         with st.chat_message("assistant"):
             with st.spinner("AI sedang menganalisis..."):
                 llm = get_llm()
-                if llm:
-                    if prompt.strip().lower() in ["hi", "halo", "hai"]:
-                        ai_answer = "Hi, ada yang bisa saya bantu? Anda bisa bertanya tentang analisis data survei shampo ini."
-                    else:
-                        data_text = st.session_state.df.to_string() if st.session_state.df is not None else "Data tidak tersedia."
-                        prompt_qa = f"""
-                        Anda adalah seorang analis pasar yang ahli. Berdasarkan data survei shampo berikut:
-                        
-                        {data_text}
-                        
-                        Jawab pertanyaan berikut dari sudut pandang analisis pasar, potensi market, dan persepsi konsumen.
-                        
-                        Pertanyaan: "{prompt}"
-                        
-                        Berikan jawaban yang ringkas dan informatif dalam Bahasa Indonesia.
-                        
-                        ---
-                        
-                        Contoh Jawaban:
-                        Berdasarkan data survei, persepsi konsumen terhadap TRESemmé bervariasi. Beberapa responden menganggapnya "mahal, ngak bagus, kasar" sementara yang lain menganggapnya "oke". Hal ini menunjukkan bahwa ada segmen pasar yang berbeda. Strategi pemasaran untuk TRESemmé bisa difokuskan pada peningkatan kualitas produk atau menargetkan segmen yang lebih sensitif terhadap harga.
-                        
-                        ---
-                        
-                        Jawaban Anda:
-                        """
-                        chain = PromptTemplate.from_template(prompt_qa) | llm
-                        ai_answer = chain.invoke({"context": data_text, "question": prompt}).content
+                if llm and st.session_state.data_loaded_successfully:
+                    # Menggunakan seluruh data sebagai konteks untuk AI
+                    data_text = st.session_state.df.to_string()
+                    
+                    # Template prompt yang lebih terstruktur
+                    prompt_template_qa = """
+                    Anda adalah seorang analis pasar yang ahli. Berdasarkan data survei shampo berikut, jawab pertanyaan pengguna.
+                    Fokuskan jawaban Anda pada insight pemasaran, persepsi konsumen, dan potensi strategi.
+                    
+                    DATA SURVEI:
+                    ---
+                    {data_text}
+                    ---
+                    
+                    PERTANYAAN PENGGUNA:
+                    "{prompt}"
+                    
+                    Berikan jawaban yang ringkas, jelas, dan informatif dalam Bahasa Indonesia.
+                    """
+                    
+                    chain = PromptTemplate.from_template(prompt_template_qa) | llm
+                    
+                    # Memperbaiki pemanggilan invoke dengan kunci yang sesuai
+                    ai_answer = chain.invoke({
+                        "data_text": data_text, 
+                        "prompt": prompt
+                    }).content
                     
                     st.markdown(ai_answer)
                     st.session_state.messages.append({"role": "assistant", "content": ai_answer})
+                elif not st.session_state.data_loaded_successfully:
+                    st.error("Tidak dapat menjawab karena data gagal dimuat. Mohon perbaiki masalah pada pemuatan data terlebih dahulu.")
                 else:
-                    st.error("Gagal memuat model AI.")
+                    st.error("Gagal terhubung dengan model AI. Mohon periksa kembali API Key Anda.")
