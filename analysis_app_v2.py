@@ -123,6 +123,39 @@ def analyze_sentiment(text):
         elif "NETRAL" in sentiment:
             return "Netral"
     return "Netral"
+        with st.expander("5. Ringkasan Alasan Favorit Shampo (AI-Powered)"):
+            if "favorit_shampo" in df.columns and not df["favorit_shampo"].isnull().all():
+                alasan_list = df["favorit_shampo"].dropna().astype(str).tolist()
+                all_reasons = " ".join(alasan_list)
+                total_words = len(all_reasons.split())
+
+                if total_words >= 3:
+                    with st.spinner("Membuat WordCloud dan meringkas alasan..."):
+                        # WordCloud
+                        create_wordcloud(all_reasons, "WordCloud Alasan Favorit Shampo")
+
+                        # Ringkasan AI
+                        summary_text = generate_summary(all_reasons)
+                        if summary_text:
+                            st.markdown("### Ringkasan AI:")
+                            st.info(summary_text)
+                        else:
+                            st.warning("AI gagal membuat ringkasan.")
+
+                        # Analisis Kata Kunci
+                        keywords = ["bungkus", "wangi", "kemasan", "aroma", "tekstur", "harga", "lembut", "busanya", "tidak lengket", "efektif", "alami"]
+                        keyword_counts = {key: all_reasons.lower().count(key) for key in keywords if key in all_reasons.lower()}
+                        if keyword_counts:
+                            keyword_df = pd.DataFrame(list(keyword_counts.items()), columns=["Kata Kunci", "Frekuensi"]).sort_values(by="Frekuensi", ascending=False)
+                            st.markdown("### Kata Kunci yang Paling Sering Muncul:")
+                            st.dataframe(keyword_df)
+                else:
+                    st.warning("Data alasan terlalu sedikit untuk membuat WordCloud atau ringkasan AI.")
+                    st.markdown("### Daftar Alasan yang Tersedia:")
+                    for i, alasan in enumerate(alasan_list, 1):
+                        st.markdown(f"{i}. {alasan}")
+            else:
+                st.info("Tidak ada data untuk ringkasan alasan favorit.")
 
 # --- Fungsi-fungsi Visualisasi ---
 def create_wordcloud(text, title):
