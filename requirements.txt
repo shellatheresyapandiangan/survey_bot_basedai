@@ -3,3 +3,4 @@ pandas
 requests
 matplotlib
 wordcloud
+langchain_groq
