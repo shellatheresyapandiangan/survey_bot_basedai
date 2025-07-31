@@ -10,7 +10,6 @@ import io
 import time
 
 # Token API dari user (digunakan untuk panggilan AI)
-# Token ini adalah token Groq. Kode telah diperbarui untuk menggunakan API Groq.
 API_KEY = "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"
 # URL API Groq yang kompatibel dengan format OpenAI
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -40,7 +39,7 @@ def call_llm(prompt, api_key):
     
     try:
         response = requests.post(GROQ_API_URL, headers=headers, data=json.dumps(payload))
-        response.raise_for_status()  # Angkat pengecualian untuk status kode error (4xx atau 5xx)
+        response.raise_for_status()
         result = response.json()
         return result["choices"][0]["message"]["content"]
     except requests.exceptions.HTTPError as http_err:
@@ -106,6 +105,7 @@ google_sheets_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?
 
 # Mengubah nama kolom agar sesuai dengan data Google Sheets
 COLUMN_MAP = {
+    "Timestamp": "timestamp", # Kolom 'Timestamp' dari Google Forms
     "Apa merek shampo yang Anda ketahui": "merek_diketahui",
     "Apa merek shampo yang Anda gunakan": "merek_digunakan",
     "Bagaimana persepsi anda terkait shampo tresemme": "persepsi_tresemme",
@@ -117,14 +117,14 @@ try:
     with st.spinner("Mengambil data dari Google Sheets..."):
         df = pd.read_csv(google_sheets_url)
     
+    # Mengubah nama kolom agar mudah diakses
+    df = df.rename(columns=COLUMN_MAP)
+
     # Memeriksa apakah semua kolom yang diharapkan ada di dataframe
-    missing_columns = [col for col in COLUMN_MAP.keys() if col not in df.columns]
+    missing_columns = [col for col in COLUMN_MAP.values() if col not in df.columns]
     if missing_columns:
         st.error(f"Terjadi kesalahan saat memproses data: Kolom berikut tidak ditemukan: {missing_columns}. Mohon periksa kembali nama kolom di Google Sheets Anda.")
         st.stop()
-
-    # Mengubah nama kolom agar mudah diakses
-    df = df.rename(columns=COLUMN_MAP)
 
     # --- Analisis Dimulai ---
     st.markdown("---")
