@@ -62,36 +62,33 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# API Gemini
-API_KEY = ""
-API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent"
+# Token API Groq yang Anda berikan
+API_KEY = "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"
+GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-# --- Fungsi untuk memanggil model AI (Gemini API) ---
+# --- Fungsi untuk memanggil model AI (Groq API) ---
 def call_llm(prompt, api_key):
     """
-    Memanggil Gemini API untuk mendapatkan ringkasan atau analisis.
+    Memanggil Groq API untuk mendapatkan ringkasan atau analisis.
     """
     headers = {
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
     payload = {
-        "contents": [
-            {
-                "role": "user",
-                "parts": [
-                    {"text": prompt}
-                ]
-            }
+        "model": "gemma-7b-it",
+        "messages": [
+            {"role": "user", "content": prompt}
         ]
     }
     
     try:
-        response = requests.post(f"{API_URL}?key={api_key}", headers=headers, data=json.dumps(payload))
+        response = requests.post(GROQ_API_URL, headers=headers, data=json.dumps(payload))
         response.raise_for_status()
         result = response.json()
-        return result["candidates"][0]["content"]["parts"][0]["text"]
+        return result["choices"][0]["message"]["content"]
     except requests.exceptions.HTTPError as http_err:
-        st.error(f"Kesalahan HTTP: {http_err} - Pastikan token API valid.")
+        st.error(f"Kesalahan HTTP: {http_err} - Pastikan token API valid dan memiliki akses ke Groq API.")
     except (requests.exceptions.RequestException, KeyError, IndexError) as err:
         st.error(f"Terjadi kesalahan saat memproses respons API: {err}")
     return "Respons tidak dapat diproses."
