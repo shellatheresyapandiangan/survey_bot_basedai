@@ -1,22 +1,30 @@
+# ==============================================================================
+# Aplikasi Analisis Data Survei Shampo
+# Menggunakan LangChain & Groq API
+# ==============================================================================
+
+# --- 1. Impor Library ---
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 from wordcloud import WordCloud
 from collections import Counter
-import json
 import requests
 import re
 import io
 import time
+import json
+from langchain_groq import ChatGroq
+from langchain.prompts import PromptTemplate
 
-# --- Konfigurasi Halaman Streamlit ---
+# --- 2. Konfigurasi Halaman & Desain (CSS) ---
 st.set_page_config(
     page_title="Analisis Data Survei Shampo",
     page_icon="📊",
     layout="wide"
 )
 
-# Menambahkan CSS kustom untuk tampilan yang lebih profesional
+# CSS Kustom untuk tampilan yang lebih profesional
 st.markdown("""
 <style>
 .stApp {
@@ -63,37 +71,49 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Token API Groq yang Anda berikan
-API_KEY = "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"
-GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_API_KEY = "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"
 
-# --- Fungsi untuk memanggil model AI (Groq API) ---
-def call_llm(prompt, api_key):
-    """
-    Memanggil Groq API untuk mendapatkan ringkasan atau analisis.
-    """
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "model": "gemma-7b-it",
-        "messages": [
-            {"role": "user", "content": prompt}
-        ]
-    }
-    
+# --- 3. Fungsi Inti ---
+@st.cache_resource
+def get_llm():
     try:
-        response = requests.post(GROQ_API_URL, headers=headers, data=json.dumps(payload))
-        response.raise_for_status()
-        result = response.json()
-        return result["choices"][0]["message"]["content"]
-    except requests.exceptions.HTTPError as http_err:
-        st.error(f"Kesalahan HTTP: {http_err} - Pastikan token API valid dan memiliki akses ke Groq API.")
-    except (requests.exceptions.RequestException, KeyError, IndexError) as err:
-        st.error(f"Terjadi kesalahan saat memproses respons API: {err}")
-    return "Respons tidak dapat diproses."
+        return ChatGroq(temperature=0, model_name="llama3-8b-8192", groq_api_key=GROQ_API_KEY)
+    except Exception as e:
+        st.error(f"Gagal memuat model AI. Pastikan GROQ_API_KEY Anda sudah benar. Error: {e}")
+        return None
 
-# --- Fungsi untuk membuat WordCloud ---
+def generate_summary(text_content):
+    llm = get_llm()
+    if not llm or not text_content: return "Gagal membuat ringkasan."
+    
+    prompt = PromptTemplate.from_template(
+        "Anda adalah analis riset AI. Buat ringkasan komprehensif dari teks berikut dalam format poin-poin (bullet points) dalam Bahasa Indonesia. Fokus pada ide utama dan poin-poin kunci.\n\nTeks:\n---\n{{text}}\n---"
+    )
+    chain = prompt | llm
+    summary = chain.invoke({"text": text_content[:12000]}).content
+    return summary
+
+def analyze_sentiment(text):
+    llm = get_llm()
+    if not llm: return "Model AI tidak tersedia."
+
+    prompt = PromptTemplate.from_template(
+        "Klasifikasikan sentimen dari teks berikut: '{text}'. Pilih salah satu dari kategori berikut: 'Baik', 'Buruk', atau 'Netral'. Berikan hanya satu kata dari kategori tersebut sebagai jawaban."
+    )
+    chain = prompt | llm
+    response = chain.invoke({"text": text}).content
+
+    if response:
+        sentiment = response.strip().upper()
+        if "BAIK" in sentiment:
+            return "Baik"
+        elif "BURUK" in sentiment:
+            return "Buruk"
+        elif "NETRAL" in sentiment:
+            return "Netral"
+    return "Netral"
+
+# --- Fungsi-fungsi Visualisasi ---
 def create_wordcloud(text, title):
     """
     Membuat dan menampilkan WordCloud dari teks yang diberikan.
@@ -111,30 +131,6 @@ def create_wordcloud(text, title):
     ax.axis("off")
     st.subheader(title)
     st.pyplot(fig)
-
-# --- Fungsi untuk menganalisis sentimen ---
-def analyze_sentiment(text, api_key):
-    """
-    Menggunakan LLM untuk mengkategorikan sentimen.
-    """
-    prompt = f"""
-    Klasifikasikan sentimen dari teks berikut:
-    "{text}"
-    
-    Pilih salah satu dari kategori berikut: 'Baik', 'Buruk', atau 'Netral'.
-    Berikan hanya satu kata dari kategori tersebut sebagai jawaban.
-    """
-    response = call_llm(prompt, api_key)
-    
-    if response:
-        sentiment = response.strip().upper()
-        if "BAIK" in sentiment:
-            return "Baik"
-        elif "BURUK" in sentiment:
-            return "Buruk"
-        elif "NETRAL" in sentiment:
-            return "Netral"
-    return "Netral"
 
 # --- Header Aplikasi ---
 st.markdown("<div class='header-title'>Analisis Data Survei Shampo</div>", unsafe_allow_html=True)
@@ -201,7 +197,7 @@ try:
     with st.expander("2. Persepsi Terkait Shampo TRESemmé (AI-Powered)"):
         if "persepsi_tresemme" in df.columns and not df["persepsi_tresemme"].isnull().all():
             with st.spinner("Menganalisis sentimen..."):
-                df["sentimen_tresemme"] = df["persepsi_tresemme"].apply(lambda x: analyze_sentiment(str(x), API_KEY) if pd.notna(x) else "Netral")
+                df["sentimen_tresemme"] = df["persepsi_tresemme"].apply(lambda x: analyze_sentiment(str(x)) if pd.notna(x) else "Netral")
             sentiment_counts = df["sentimen_tresemme"].value_counts()
             
             fig, ax = plt.subplots()
@@ -257,7 +253,7 @@ try:
                 
                 Buatlah ringkasan singkat dalam bahasa Indonesia mengenai alasan-alasan utama yang sering disebutkan.
                 """
-                summary_text = call_llm(prompt_summary, API_KEY)
+                summary_text = generate_summary(all_reasons)
                 if summary_text:
                     st.info(summary_text)
         else:
@@ -281,7 +277,7 @@ try:
                     
                     Berikan jawaban yang ringkas dan informatif.
                     """
-                    ai_answer = call_llm(prompt_qa, API_KEY)
+                    ai_answer = generate_summary(data_text) # Menggunakan generate_summary untuk menjawab
                     if ai_answer:
                         st.info(ai_answer)
             else:
