@@ -3,4 +3,12 @@ pandas
 requests
 matplotlib
 wordcloud
+streamlit
+pandas
+matplotlib
+wordcloud
+requests
+langchain
 langchain_groq
+langchain_groq
+
