@@ -11,7 +11,7 @@ import time
 # --- Konfigurasi Halaman Streamlit ---
 st.set_page_config(
     page_title="Analisis Data Survei Shampo",
-    page_icon="�",
+    page_icon="📊",
     layout="wide"
 )
 
@@ -133,7 +133,11 @@ try:
 
     # Bagian 2: Persepsi Terkait Shampo TRESemmé
     with st.expander("2. Persepsi Terkait Shampo TRESemmé"):
-        st.info("Analisis sentimen tidak dapat dilakukan karena token API untuk AI tidak valid.")
+        if "persepsi_tresemme" in df.columns and not df["persepsi_tresemme"].isnull().all():
+            text_persepsi = " ".join(df["persepsi_tresemme"].dropna().astype(str))
+            create_wordcloud(text_persepsi, "WordCloud Persepsi Terkait Shampo TRESemmé")
+        else:
+            st.info("Tidak ada data untuk analisis persepsi TRESemmé.")
     
     # Bagian 3: Alasan Tidak Suka CLEAR
     with st.expander("3. Alasan Tidak Suka Shampo CLEAR"):
