@@ -20,7 +20,7 @@ from langchain.prompts import PromptTemplate
 # --- 2. Konfigurasi Halaman & Desain (CSS) ---
 st.set_page_config(
     page_title="Analisis Data Survei Shampo",
-    page_icon="�",
+    page_icon="📊",
     layout="wide"
 )
 
@@ -66,6 +66,17 @@ st.markdown("""
 .stButton>button:hover {
     background-color: #45a049;
     transform: translateY(-2px);
+}
+/* Gaya untuk chat messages */
+.st-chat-message-user {
+    background-color: #e3f2fd;
+    border-radius: 12px;
+    padding: 10px;
+}
+.st-chat-message-assistant {
+    background-color: #f5f5f5;
+    border-radius: 12px;
+    padding: 10px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -132,10 +143,6 @@ def create_wordcloud(text, title):
     st.subheader(title)
     st.pyplot(fig)
 
-# --- Header Aplikasi ---
-st.markdown("<div class='header-title'>Analisis Data Survei Shampo</div>", unsafe_allow_html=True)
-st.markdown("<div class='header-subtitle'>Menganalisis data survei preferensi shampo dari Google Sheets.</div>", unsafe_allow_html=True)
-st.markdown("---")
 
 # --- Memuat Data dari Google Sheets ---
 SHEET_ID = "1Mp7KYO4w6GRUqvuTr4IRNeB7iy8SIZjSrLZmbEAm4GM"
@@ -151,152 +158,174 @@ EXPECTED_COLUMNS = {
     "Shampo seperti apa yang anda favoritkan? Dari bungkus, wangi, dll? Dan jelaskan alasannya?": "favorit_shampo"
 }
 
-try:
-    with st.spinner("Mengambil data dari Google Sheets..."):
-        df = pd.read_csv(google_sheets_url)
-    
-    df.columns = [col.strip() for col in df.columns]
-    
-    column_mapping = {}
-    for sheet_col in df.columns:
-        for expected_col, internal_name in EXPECTED_COLUMNS.items():
-            if expected_col.strip().lower() in sheet_col.lower():
-                column_mapping[sheet_col] = internal_name
-    
-    df = df.rename(columns=column_mapping)
+# --- Inisialisasi Session State ---
+if 'messages' not in st.session_state:
+    st.session_state.messages = []
+if 'df' not in st.session_state:
+    st.session_state.df = None
 
-    mapped_columns = set(column_mapping.values())
-    if not all(col in mapped_columns for col in EXPECTED_COLUMNS.values()):
-        st.error("Terjadi kesalahan saat memproses data: Tidak semua kolom survei ditemukan. Mohon periksa kembali nama kolom di Google Sheets Anda.")
-        st.stop()
-        
-    # --- Analisis Dimulai ---
+# --- Main App Logic ---
+col_chat, col_analysis = st.columns([1, 2], gap="large")
+
+with col_analysis:
+    st.markdown("<div class='header-title'>Analisis Data Survei Shampo</div>", unsafe_allow_html=True)
+    st.markdown("<div class='header-subtitle'>Menganalisis data survei preferensi shampo dari Google Sheets.</div>", unsafe_allow_html=True)
     st.markdown("---")
-    
-    # Bagian 1: WordCloud dan Top 10 Merek
-    with st.expander("1. Merek Shampo yang Diketahui & Digunakan"):
-        all_brands = (
-            ", ".join(df["merek_diketahui"].dropna().astype(str)) + ", " +
-            ", ".join(df["merek_digunakan"].dropna().astype(str))
-        ).lower()
-        all_brands_list = [brand.strip() for brand in re.split(r'[,;]+', all_brands) if brand.strip()]
+
+    try:
+        if st.session_state.df is None:
+            with st.spinner("Mengambil data dari Google Sheets..."):
+                df_loaded = pd.read_csv(google_sheets_url)
+            
+            df_loaded.columns = [col.strip() for col in df_loaded.columns]
+            
+            column_mapping = {}
+            for sheet_col in df_loaded.columns:
+                for expected_col, internal_name in EXPECTED_COLUMNS.items():
+                    if expected_col.strip().lower() in sheet_col.lower():
+                        column_mapping[sheet_col] = internal_name
+            
+            df_loaded = df_loaded.rename(columns=column_mapping)
+            st.session_state.df = df_loaded
+
+        df = st.session_state.df
         
-        if all_brands_list:
-            create_wordcloud(" ".join(all_brands_list), "WordCloud Merek Shampo Terkenal")
+        mapped_columns = set(column_mapping.values())
+        if not all(col in mapped_columns for col in EXPECTED_COLUMNS.values()):
+            st.error("Terjadi kesalahan saat memproses data: Tidak semua kolom survei ditemukan. Mohon periksa kembali nama kolom di Google Sheets Anda.")
+            st.stop()
             
-            brand_counts = Counter(all_brands_list)
-            top_10_brands = brand_counts.most_common(10)
+        # --- Analisis Dimulai ---
+        st.markdown("---")
+        
+        with st.expander("1. Merek Shampo yang Diketahui & Digunakan"):
+            all_brands = (
+                ", ".join(df["merek_diketahui"].dropna().astype(str)) + ", " +
+                ", ".join(df["merek_digunakan"].dropna().astype(str))
+            ).lower()
+            all_brands_list = [brand.strip() for brand in re.split(r'[,;]+', all_brands) if brand.strip()]
             
-            st.subheader("Top 10 Merek Shampo")
-            top_10_df = pd.DataFrame(top_10_brands, columns=["Merek", "Frekuensi"])
-            st.dataframe(top_10_df)
-        else:
-            st.info("Tidak ada data merek untuk dianalisis.")
-
-    # Bagian 2: Persepsi Terkait Shampo TRESemmé (AI-Powered)
-    with st.expander("2. Persepsi Terkait Shampo TRESemmé (AI-Powered)"):
-        if "persepsi_tresemme" in df.columns and not df["persepsi_tresemme"].isnull().all():
-            with st.spinner("Menganalisis sentimen..."):
-                df["sentimen_tresemme"] = df["persepsi_tresemme"].apply(lambda x: analyze_sentiment(str(x)) if pd.notna(x) else "Netral")
-            sentiment_counts = df["sentimen_tresemme"].value_counts()
-            
-            fig, ax = plt.subplots()
-            sentiment_counts.plot(kind='bar', color=['#4CAF50', '#f44336', '#9e9e9e'])
-            ax.set_title("Analisis Sentimen TRESemmé")
-            ax.set_ylabel("Jumlah Responden")
-            ax.tick_params(axis='x', rotation=0)
-            st.pyplot(fig)
-            
-            st.dataframe(sentiment_counts)
-        else:
-            st.info("Tidak ada data untuk analisis persepsi TRESemmé.")
-    
-    # Bagian 3: Alasan Tidak Suka CLEAR
-    with st.expander("3. Alasan Tidak Suka Shampo CLEAR"):
-        if "tidak_suka_clear" in df.columns and not df["tidak_suka_clear"].isnull().all():
-            text_dislikes = " ".join(df["tidak_suka_clear"].dropna().astype(str))
-            create_wordcloud(text_dislikes, "WordCloud Alasan Tidak Suka Shampo CLEAR")
-        else:
-            st.info("Tidak ada data untuk analisis alasan tidak suka CLEAR.")
-    
-    # Bagian 4: Prioritas dalam Memilih Shampo
-    with st.expander("4. Prioritas dalam Memilih Shampo"):
-        if "favorit_shampo" in df.columns and not df["favorit_shampo"].isnull().all():
-            keywords = ["bungkus", "wangi", "kemasan", "aroma", "tekstur", "harga"]
-            priority_counts = {keyword: 0 for keyword in keywords}
-            
-            for alasan in df["favorit_shampo"].dropna().astype(str):
-                alasan_lower = alasan.lower()
-                for keyword in keywords:
-                    if keyword in alasan_lower:
-                        priority_counts[keyword] += 1
-            
-            priorities_df = pd.DataFrame(list(priority_counts.items()), columns=["Prioritas", "Frekuensi"])
-            
-            fig, ax = plt.subplots(figsize=(10, 6))
-            ax.bar(priorities_df["Prioritas"], priorities_df["Frekuensi"], color='#64b5f6')
-            ax.set_title("Prioritas dalam Memilih Shampo", fontsize=16)
-            ax.set_ylabel("Frekuensi", fontsize=12)
-            ax.tick_params(axis='x', rotation=45)
-            st.pyplot(fig)
-        else:
-            st.info("Tidak ada data untuk analisis prioritas.")
-
-    # Bagian 5: Ringkasan Alasan Favorit Shampo (AI-Powered)
-    with st.expander("5. Ringkasan Alasan Favorit Shampo (AI-Powered)"):
-        if "favorit_shampo" in df.columns and not df["favorit_shampo"].isnull().all():
-            all_reasons = " ".join(df["favorit_shampo"].dropna().astype(str))
-            with st.spinner("Meringkas alasan-alasan favorit dengan AI..."):
-                summary_text = generate_summary(all_reasons)
-                if summary_text:
-                    st.info(summary_text)
-        else:
-            st.info("Tidak ada data untuk ringkasan alasan favorit.")
-            
-    # Bagian 6: Tanya AI tentang Data Survei (Fitur GPT)
-    with st.expander("6. Tanya AI tentang Data Survei"):
-        st.markdown("Masukkan pertanyaan spesifik Anda terkait data survei ini.")
-        user_question = st.text_area("Pertanyaan Anda:")
-        if st.button("Tanyakan ke AI"):
-            if user_question:
-                with st.spinner("AI sedang memproses pertanyaan Anda..."):
-                    llm = get_llm()
-                    if llm:
-                        if user_question.strip().lower() in ["hi", "halo", "hai"]:
-                            ai_answer = "Hi, ada yang bisa saya bantu? Anda bisa bertanya tentang analisis data survei shampo ini."
-                        else:
-                            data_text = df.to_string()
-                            prompt_qa = f"""
-                            Anda adalah seorang analis pasar yang ahli. Berdasarkan data survei shampo berikut:
-                            
-                            {data_text}
-                            
-                            Jawab pertanyaan berikut dari sudut pandang analisis pasar, potensi market, dan persepsi konsumen.
-                            
-                            Pertanyaan: "{user_question}"
-                            
-                            Berikan jawaban yang ringkas dan informatif dalam Bahasa Indonesia.
-                            
-                            ---
-                            
-                            Contoh Jawaban:
-                            Berdasarkan data, TRESemmé memiliki persepsi yang bervariasi. Responden menganggapnya "Mahal, ngak bagus, kasar" namun di sisi lain ada yang "oke". Ini mengindikasikan adanya segmen pasar yang berbeda. Untuk TRESemmé, strategi pemasaran bisa difokuskan pada peningkatan kualitas produk atau menargetkan segmen yang lebih sensitif terhadap harga.
-                            
-                            ---
-                            
-                            Jawaban Anda:
-                            """
-                            chain = PromptTemplate.from_template(prompt_qa) | llm
-                            ai_answer = chain.invoke({"context": data_text, "question": user_question}).content
-                        
-                        if ai_answer:
-                            st.info(ai_answer)
-                    else:
-                        st.error("Gagal memuat model AI.")
+            if all_brands_list:
+                create_wordcloud(" ".join(all_brands_list), "WordCloud Merek Shampo Terkenal")
+                
+                brand_counts = Counter(all_brands_list)
+                top_10_brands = brand_counts.most_common(10)
+                
+                st.subheader("Top 10 Merek Shampo")
+                top_10_df = pd.DataFrame(top_10_brands, columns=["Merek", "Frekuensi"])
+                st.dataframe(top_10_df)
             else:
-                st.warning("Mohon masukkan pertanyaan terlebih dahulu.")
+                st.info("Tidak ada data merek untuk dianalisis.")
 
-except requests.exceptions.HTTPError as e:
-    st.error(f"Gagal memuat data dari Google Sheets. Mohon pastikan link publik dan nama sheet sudah benar. Kesalahan: {e}")
-except Exception as e:
-    st.error(f"Terjadi kesalahan saat memproses data: {e}. Mohon periksa kembali struktur kolom di Google Sheets Anda.")
+        with st.expander("2. Persepsi Terkait Shampo TRESemmé (AI-Powered)"):
+            if "persepsi_tresemme" in df.columns and not df["persepsi_tresemme"].isnull().all():
+                with st.spinner("Menganalisis sentimen..."):
+                    df["sentimen_tresemme"] = df["persepsi_tresemme"].apply(lambda x: analyze_sentiment(str(x)) if pd.notna(x) else "Netral")
+                sentiment_counts = df["sentimen_tresemme"].value_counts()
+                
+                fig, ax = plt.subplots()
+                sentiment_counts.plot(kind='bar', color=['#4CAF50', '#f44336', '#9e9e9e'])
+                ax.set_title("Analisis Sentimen TRESemmé")
+                ax.set_ylabel("Jumlah Responden")
+                ax.tick_params(axis='x', rotation=0)
+                st.pyplot(fig)
+                
+                st.dataframe(sentiment_counts)
+            else:
+                st.info("Tidak ada data untuk analisis persepsi TRESemmé.")
+        
+        with st.expander("3. Alasan Tidak Suka CLEAR"):
+            if "tidak_suka_clear" in df.columns and not df["tidak_suka_clear"].isnull().all():
+                text_dislikes = " ".join(df["tidak_suka_clear"].dropna().astype(str))
+                create_wordcloud(text_dislikes, "WordCloud Alasan Tidak Suka Shampo CLEAR")
+            else:
+                st.info("Tidak ada data untuk analisis alasan tidak suka CLEAR.")
+        
+        with st.expander("4. Prioritas dalam Memilih Shampo"):
+            if "favorit_shampo" in df.columns and not df["favorit_shampo"].isnull().all():
+                keywords = ["bungkus", "wangi", "kemasan", "aroma", "tekstur", "harga"]
+                priority_counts = {keyword: 0 for keyword in keywords}
+                
+                for alasan in df["favorit_shampo"].dropna().astype(str):
+                    alasan_lower = alasan.lower()
+                    for keyword in keywords:
+                        if keyword in alasan_lower:
+                            priority_counts[keyword] += 1
+                
+                priorities_df = pd.DataFrame(list(priority_counts.items()), columns=["Prioritas", "Frekuensi"])
+                
+                fig, ax = plt.subplots(figsize=(10, 6))
+                ax.bar(priorities_df["Prioritas"], priorities_df["Frekuensi"], color='#64b5f6')
+                ax.set_title("Prioritas dalam Memilih Shampo", fontsize=16)
+                ax.set_ylabel("Frekuensi", fontsize=12)
+                ax.tick_params(axis='x', rotation=45)
+                st.pyplot(fig)
+            else:
+                st.info("Tidak ada data untuk analisis prioritas.")
+
+        with st.expander("5. Ringkasan Alasan Favorit Shampo (AI-Powered)"):
+            if "favorit_shampo" in df.columns and not df["favorit_shampo"].isnull().all():
+                all_reasons = " ".join(df["favorit_shampo"].dropna().astype(str))
+                with st.spinner("Meringkas alasan-alasan favorit dengan AI..."):
+                    summary_text = generate_summary(all_reasons)
+                    if summary_text:
+                        st.info(summary_text)
+            else:
+                st.info("Tidak ada data untuk ringkasan alasan favorit.")
+
+    except requests.exceptions.HTTPError as e:
+        st.error(f"Gagal memuat data dari Google Sheets. Mohon pastikan link publik dan nama sheet sudah benar. Kesalahan: {e}")
+    except Exception as e:
+        st.error(f"Terjadi kesalahan saat memproses data: {e}. Mohon periksa kembali struktur kolom di Google Sheets Anda.")
+
+with col_chat:
+    st.title("Asisten Analis Pemasaran")
+    st.markdown("Halo! Saya siap membantu Anda menganalisis data survei shampo ini. Silakan ajukan pertanyaan seputar analisis pasar, persepsi konsumen, atau potensi merek.")
+
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    if prompt := st.chat_input("Tanya AI tentang data survei..."):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        with st.chat_message("assistant"):
+            with st.spinner("AI sedang menganalisis..."):
+                llm = get_llm()
+                if llm:
+                    if prompt.strip().lower() in ["hi", "halo", "hai"]:
+                        ai_answer = "Hi, ada yang bisa saya bantu? Anda bisa bertanya tentang analisis data survei shampo ini."
+                    else:
+                        data_text = st.session_state.df.to_string() if st.session_state.df is not None else "Data tidak tersedia."
+                        prompt_qa = f"""
+                        Anda adalah seorang analis pasar yang ahli. Berdasarkan data survei shampo berikut:
+                        
+                        {data_text}
+                        
+                        Jawab pertanyaan berikut dari sudut pandang analisis pasar, potensi market, dan persepsi konsumen.
+                        
+                        Pertanyaan: "{prompt}"
+                        
+                        Berikan jawaban yang ringkas dan informatif dalam Bahasa Indonesia.
+                        
+                        ---
+                        
+                        Contoh Jawaban:
+                        Berdasarkan data survei, persepsi konsumen terhadap TRESemmé bervariasi. Beberapa responden menganggapnya "mahal, ngak bagus, kasar" sementara yang lain menganggapnya "oke". Hal ini menunjukkan bahwa ada segmen pasar yang berbeda. Strategi pemasaran untuk TRESemmé bisa difokuskan pada peningkatan kualitas produk atau menargetkan segmen yang lebih sensitif terhadap harga.
+                        
+                        ---
+                        
+                        Jawaban Anda:
+                        """
+                        chain = PromptTemplate.from_template(prompt_qa) | llm
+                        ai_answer = chain.invoke({"context": data_text, "question": prompt}).content
+                    
+                    st.markdown(ai_answer)
+                    st.session_state.messages.append({"role": "assistant", "content": ai_answer})
+                else:
+                    st.error("Gagal memuat model AI.")
