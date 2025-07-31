@@ -3,53 +3,17 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from wordcloud import WordCloud
 from collections import Counter
-import json
 import requests
 import re
 import io
 import time
 
-# Token API dari user (digunakan untuk panggilan AI)
-#
-# PENTING: Anda harus mengganti nilai ini dengan token Groq API yang valid dari akun Anda.
-# Token ini adalah token Groq.
-API_KEY = "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"
-# URL API Groq yang kompatibel dengan format OpenAI
-GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-
 # --- Konfigurasi Halaman Streamlit ---
 st.set_page_config(
-    page_title="Analisis Data Surveai Shampo",
-    page_icon="�",
+    page_title="Analisis Data Survei Shampo",
+    page_icon="📊",
     layout="wide"
 )
-
-# --- Fungsi untuk memanggil model AI (Groq API) ---
-def call_llm(prompt, api_key):
-    """
-    Memanggil Groq API untuk mendapatkan ringkasan atau analisis.
-    """
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "model": "gemma-7b-it", # Menggunakan model yang tersedia di Groq
-        "messages": [
-            {"role": "user", "content": prompt}
-        ]
-    }
-    
-    try:
-        response = requests.post(GROQ_API_URL, headers=headers, data=json.dumps(payload))
-        response.raise_for_status()
-        result = response.json()
-        return result["choices"][0]["message"]["content"]
-    except requests.exceptions.HTTPError as http_err:
-        st.error(f"Kesalahan HTTP: {http_err} - Pastikan token API valid dan memiliki akses ke Groq API.")
-    except (requests.exceptions.RequestException, KeyError, IndexError) as err:
-        st.error(f"Terjadi kesalahan saat memproses respons API: {err}")
-    return "Respons tidak dapat diproses."
 
 # --- Fungsi untuk membuat WordCloud ---
 def create_wordcloud(text, title):
@@ -69,30 +33,6 @@ def create_wordcloud(text, title):
     ax.axis("off")
     st.subheader(title)
     st.pyplot(fig)
-
-# --- Fungsi untuk menganalisis sentimen ---
-def analyze_sentiment(text, api_key):
-    """
-    Menggunakan LLM untuk mengkategorikan sentimen.
-    """
-    prompt = f"""
-    Klasifikasikan sentimen dari teks berikut:
-    "{text}"
-    
-    Pilih salah satu dari kategori berikut: 'Baik', 'Buruk', atau 'Netral'.
-    Berikan hanya satu kata dari kategori tersebut sebagai jawaban.
-    """
-    response = call_llm(prompt, api_key)
-    
-    if response:
-        sentiment = response.strip().upper()
-        if "BAIK" in sentiment:
-            return "Baik"
-        elif "BURUK" in sentiment:
-            return "Buruk"
-        elif "NETRAL" in sentiment:
-            return "Netral"
-    return "Netral"
 
 # --- Judul Aplikasi ---
 st.title("Analisis Data Survei Shampo")
@@ -163,17 +103,10 @@ try:
 
     st.markdown("---")
 
-    # 2. Analisis Persepsi TRESemmé
-    st.markdown("### 2. Persepsi Terkait Shampo TRESemmé (AI-Powered)")
-    if "persepsi_tresemme" in df.columns and not df["persepsi_tresemme"].isnull().all():
-        with st.spinner("Menganalisis sentimen..."):
-            df["sentimen_tresemme"] = df["persepsi_tresemme"].apply(lambda x: analyze_sentiment(str(x), API_KEY) if pd.notna(x) else "Netral")
-        sentiment_counts = df["sentimen_tresemme"].value_counts()
-        st.bar_chart(sentiment_counts)
-        st.dataframe(sentiment_counts)
-    else:
-        st.info("Tidak ada data untuk analisis persepsi TRESemmé.")
-
+    # 2. Persepsi Terkait Shampo TRESemmé
+    st.markdown("### 2. Persepsi Terkait Shampo TRESemmé")
+    st.info("Analisis sentimen tidak dapat dilakukan karena token API untuk AI tidak valid.")
+    
     st.markdown("---")
 
     # 3. Alasan Tidak Suka CLEAR
@@ -206,20 +139,11 @@ try:
 
     st.markdown("---")
 
-    # 5. Ringkasan Alasan Favorit Shampo (AI-Powered)
-    st.markdown("### 5. Ringkasan Alasan Favorit Shampo (AI-Powered)")
+    # 5. Ringkasan Alasan Favorit Shampo (WordCloud)
+    st.markdown("### 5. Ringkasan Alasan Favorit Shampo (WordCloud)")
     if "favorit_shampo" in df.columns and not df["favorit_shampo"].isnull().all():
         all_reasons = " ".join(df["favorit_shampo"].dropna().astype(str))
-        with st.spinner("Meringkas alasan-alasan favorit dengan AI..."):
-            prompt_summary = f"""
-            Berikut adalah kumpulan alasan orang memilih shampo favorit mereka:
-            "{all_reasons}"
-            
-            Buatlah ringkasan singkat dalam bahasa Indonesia mengenai alasan-alasan utama yang sering disebutkan.
-            """
-            summary_text = call_llm(prompt_summary, API_KEY)
-            if summary_text:
-                st.info(summary_text)
+        create_wordcloud(all_reasons, "WordCloud Alasan Favorit Shampo")
     else:
         st.info("Tidak ada data untuk ringkasan alasan favorit.")
 
