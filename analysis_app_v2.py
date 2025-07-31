@@ -10,17 +10,15 @@ import io
 import time
 
 # Token API dari user (digunakan untuk panggilan AI)
-#
-# PENTING: Anda harus mengganti nilai ini dengan token Groq API yang valid dari akun Anda.
-# Token ini adalah token Groq.
+# Pastikan token ini valid untuk layanan Groq API.
 API_KEY = "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"
 # URL API Groq yang kompatibel dengan format OpenAI
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 # --- Konfigurasi Halaman Streamlit ---
 st.set_page_config(
-    page_title="Analisis Data Surveai Shampo",
-    page_icon="📊",
+    page_title="Analisis Data Survei Shampo",
+    page_icon="�",
     layout="wide"
 )
 
@@ -34,7 +32,7 @@ def call_llm(prompt, api_key):
         "Content-Type": "application/json"
     }
     payload = {
-        "model": "gemma-7b-it", # Menggunakan model yang tersedia di Groq
+        "model": "gemma-7b-it",  # Menggunakan model yang tersedia di Groq
         "messages": [
             {"role": "user", "content": prompt}
         ]
@@ -164,7 +162,7 @@ try:
     st.markdown("---")
 
     # 2. Analisis Persepsi TRESemmé
-    st.markdown("### 2. Persepsi Terkait Shampo TRESemmé")
+    st.markdown("### 2. Persepsi Terkait Shampo TRESemmé (AI-Powered)")
     if "persepsi_tresemme" in df.columns and not df["persepsi_tresemme"].isnull().all():
         with st.spinner("Menganalisis sentimen..."):
             df["sentimen_tresemme"] = df["persepsi_tresemme"].apply(lambda x: analyze_sentiment(str(x), API_KEY) if pd.notna(x) else "Netral")
@@ -206,7 +204,7 @@ try:
 
     st.markdown("---")
 
-    # 5. Ringkasan Alasan Favorit Shampo dengan LLM
+    # 5. Ringkasan Alasan Favorit Shampo (AI-Powered)
     st.markdown("### 5. Ringkasan Alasan Favorit Shampo (AI-Powered)")
     if "favorit_shampo" in df.columns and not df["favorit_shampo"].isnull().all():
         all_reasons = " ".join(df["favorit_shampo"].dropna().astype(str))
