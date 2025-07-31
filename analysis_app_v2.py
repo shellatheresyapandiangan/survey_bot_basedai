@@ -117,6 +117,9 @@ try:
     with st.spinner("Mengambil data dari Google Sheets..."):
         df = pd.read_csv(google_sheets_url)
     
+    # Normalisasi nama kolom untuk menghindari kesalahan spasi atau karakter tak terlihat
+    df.columns = [col.strip() for col in df.columns]
+    
     # Mengubah nama kolom agar mudah diakses
     df = df.rename(columns=COLUMN_MAP)
 
