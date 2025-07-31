@@ -20,7 +20,7 @@ from langchain.prompts import PromptTemplate
 # --- 2. Konfigurasi Halaman & Desain (CSS) ---
 st.set_page_config(
     page_title="Analisis Data Survei Shampo",
-    page_icon="📊",
+    page_icon="�",
     layout="wide"
 )
 
@@ -260,21 +260,26 @@ try:
         if st.button("Tanyakan ke AI"):
             if user_question:
                 with st.spinner("AI sedang memproses pertanyaan Anda..."):
-                    data_text = df.to_string()
-                    prompt_qa = f"""
-                    Anda adalah seorang analis data ahli. Berdasarkan data survei berikut:
-                    
-                    {data_text}
-                    
-                    Jawab pertanyaan berikut:
-                    "{user_question}"
-                    
-                    Berikan jawaban yang ringkas dan informatif.
-                    """
                     llm = get_llm()
                     if llm:
-                        chain = PromptTemplate.from_template(prompt_qa) | llm
-                        ai_answer = chain.invoke({"context": data_text, "question": user_question}).content
+                        if user_question.strip().lower() in ["hi", "halo", "hai"]:
+                            ai_answer = "Hi, ada yang bisa saya bantu? Anda bisa bertanya tentang analisis data survei shampo ini."
+                        else:
+                            data_text = df.to_string()
+                            prompt_qa = f"""
+                            Anda adalah seorang analis pasar yang ahli. Berdasarkan data survei shampo berikut:
+                            
+                            {data_text}
+                            
+                            Jawab pertanyaan berikut dari sudut pandang analisis pasar, potensi market, dan persepsi konsumen.
+                            
+                            Pertanyaan: "{user_question}"
+                            
+                            Berikan jawaban yang ringkas dan informatif dalam Bahasa Indonesia.
+                            """
+                            chain = PromptTemplate.from_template(prompt_qa) | llm
+                            ai_answer = chain.invoke({"context": data_text, "question": user_question}).content
+                        
                         if ai_answer:
                             st.info(ai_answer)
                     else:
@@ -286,3 +291,4 @@ except requests.exceptions.HTTPError as e:
     st.error(f"Gagal memuat data dari Google Sheets. Mohon pastikan link publik dan nama sheet sudah benar. Kesalahan: {e}")
 except Exception as e:
     st.error(f"Terjadi kesalahan saat memproses data: {e}. Mohon periksa kembali struktur kolom di Google Sheets Anda.")
+�
