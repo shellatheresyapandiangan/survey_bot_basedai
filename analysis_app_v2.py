@@ -13,7 +13,7 @@ import time
 #
 # PENTING: Anda harus mengganti nilai ini dengan token Groq API yang valid dari akun Anda.
 # Token ini adalah token Groq.
-API_KEY = "PASTIKAN_TOKEN_GROQ_BARU_ANDA_DI_SINI"
+API_KEY = "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"
 # URL API Groq yang kompatibel dengan format OpenAI
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
