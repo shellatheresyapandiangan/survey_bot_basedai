@@ -1,7 +1,7 @@
 # ==============================================================================
 # Aplikasi Analisis Data Survei Shampo
 # Menggunakan LangChain & Groq API
-# Versi: Desain UI/UX Premium
+# Versi: Desain UI/UX Premium+ (dengan Kartu KPI)
 # ==============================================================================
 
 # --- 1. Impor Library ---
@@ -62,6 +62,38 @@ st.markdown("""
         font-weight: 600;
     }
 
+    /* --- Kartu KPI --- */
+    .kpi-card {
+        background: linear-gradient(135deg, #FFFFFF 0%, #F9FAFB 100%);
+        border-radius: 15px;
+        padding: 1.5rem;
+        text-align: center;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        border: 1px solid #E2E8F0;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .kpi-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    }
+    .kpi-value {
+        font-size: 2.5em;
+        font-weight: 700;
+        color: #10B981; /* Hijau cerah */
+    }
+    .kpi-value.blue { color: #3B82F6; } /* Biru */
+    .kpi-value.yellow { color: #F59E0B; } /* Kuning/Amber */
+    .kpi-label {
+        font-size: 1em;
+        font-weight: 400;
+        color: #64748B;
+        margin-top: 0.5rem;
+    }
+    .kpi-icon {
+        font-size: 1.5em;
+        margin-bottom: 1rem;
+    }
+
     /* --- Expander / Kartu Analisis --- */
     .stExpander {
         border: none;
@@ -98,18 +130,12 @@ st.markdown("""
     }
     
     /* --- Visualisasi --- */
-    .stDataFrame {
-        border: none;
-    }
-    .stDataFrame a {
-        color: #2563EB;
-    }
+    .stDataFrame { border: none; }
+    .stDataFrame a { color: #2563EB; }
 </style>
 """, unsafe_allow_html=True)
 
 # --- 3. Konfigurasi Model AI (LLM) ---
-# CATATAN: Menyimpan API key langsung di kode tidak disarankan untuk produksi.
-# Sebaiknya gunakan st.secrets untuk keamanan.
 GROQ_API_KEY = "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"
 
 @st.cache_resource
@@ -122,37 +148,24 @@ def get_llm():
         return None
 
 # --- 4. Fungsi-fungsi Inti & Analisis ---
-
 def analyze_sentiment(text):
-    """Menganalisis sentimen teks menjadi 'Baik', 'Buruk', atau 'Netral'."""
     llm = get_llm()
     if not llm: return "Netral"
-
-    prompt = PromptTemplate.from_template(
-        "Klasifikasikan sentimen dari teks berikut: '{text}'. Pilih salah satu dari kategori berikut: 'Baik', 'Buruk', atau 'Netral'. Berikan hanya satu kata dari kategori tersebut sebagai jawaban."
-    )
+    prompt = PromptTemplate.from_template("Klasifikasikan sentimen dari teks berikut: '{text}'. Pilih salah satu dari: 'Baik', 'Buruk', atau 'Netral'. Berikan hanya satu kata.")
     chain = prompt | llm
     try:
-        response = chain.invoke({"text": text}).content
-        sentiment = response.strip().upper()
-        if "BAIK" in sentiment: return "Baik"
-        elif "BURUK" in sentiment: return "Buruk"
+        response = chain.invoke({"text": text}).content.strip().upper()
+        if "BAIK" in response: return "Baik"
+        elif "BURUK" in response: return "Buruk"
         else: return "Netral"
     except Exception:
         return "Netral"
 
 def create_wordcloud(text, title):
-    """Membuat dan menampilkan WordCloud dari teks yang diberikan."""
     if not text or not text.strip():
-        st.warning(f"Tidak ada data teks yang cukup untuk membuat '{title}'.")
+        st.warning(f"Tidak ada data untuk membuat '{title}'.")
         return
-
-    wordcloud = WordCloud(
-        width=800, height=400, background_color="white",
-        max_words=50, regexp=r"\w[\w']+",
-        font_path=None, colormap='viridis' # Menggunakan colormap yang lebih modern
-    ).generate(text)
-    
+    wordcloud = WordCloud(width=800, height=400, background_color="white", max_words=50, regexp=r"\w[\w']+", colormap='viridis').generate(text)
     fig, ax = plt.subplots(figsize=(10, 5))
     ax.imshow(wordcloud, interpolation="bilinear")
     ax.axis("off")
@@ -173,12 +186,9 @@ EXPECTED_COLUMNS = {
 }
 
 # --- 6. Inisialisasi Session State ---
-if 'messages' not in st.session_state:
-    st.session_state.messages = []
-if 'df' not in st.session_state:
-    st.session_state.df = None
-if 'data_loaded_successfully' not in st.session_state:
-    st.session_state.data_loaded_successfully = False
+if 'messages' not in st.session_state: st.session_state.messages = []
+if 'df' not in st.session_state: st.session_state.df = None
+if 'data_loaded_successfully' not in st.session_state: st.session_state.data_loaded_successfully = False
 
 # --- 7. Logika Utama Aplikasi ---
 col_chat, col_analysis = st.columns([1, 2], gap="large")
@@ -188,51 +198,38 @@ with col_chat:
     st.markdown("<div class='chat-column'>", unsafe_allow_html=True)
     st.title("Asisten Analis")
     st.markdown("Ajukan pertanyaan untuk mendapatkan insight dari data survei.")
-
-    # Tampilkan riwayat percakapan
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
-
-    # Input dari pengguna
     if prompt := st.chat_input("Tanya tentang data..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
-
         with st.chat_message("assistant"):
             if prompt.strip().lower() in ["hi", "halo", "hai"]:
                 ai_answer = "Halo! Saya siap membantu Anda menganalisis data survei ini. Silakan ajukan pertanyaan."
                 st.markdown(ai_answer)
-                st.session_state.messages.append({"role": "assistant", "content": ai_answer})
             else:
                 with st.spinner("Menganalisis..."):
                     llm = get_llm()
                     if llm and st.session_state.data_loaded_successfully:
                         data_text = st.session_state.df.to_string()
-                        prompt_template_qa = """
-                        Anda adalah seorang analis pasar ahli. Berdasarkan data survei shampo berikut, jawab pertanyaan pengguna.
-                        Fokuskan jawaban Anda pada insight pemasaran, persepsi konsumen, dan potensi strategi.
-                        DATA SURVEI: --- {data_text} ---
-                        PERTANYAAN PENGGUNA: "{prompt}"
-                        Berikan jawaban yang ringkas, jelas, dan informatif dalam Bahasa Indonesia.
-                        """
+                        prompt_template_qa = "Anda adalah analis pasar ahli. Berdasarkan data survei ini: --- {data_text} --- Jawab pertanyaan ini: '{prompt}'. Berikan jawaban ringkas, jelas, dan informatif dalam Bahasa Indonesia."
                         chain = PromptTemplate.from_template(prompt_template_qa) | llm
                         ai_answer = chain.invoke({"data_text": data_text, "prompt": prompt}).content
                         st.markdown(ai_answer)
-                        st.session_state.messages.append({"role": "assistant", "content": ai_answer})
                     elif not st.session_state.data_loaded_successfully:
-                        st.error("Data gagal dimuat. Tidak dapat menjawab.")
+                        ai_answer = "Data gagal dimuat. Tidak dapat menjawab."
+                        st.error(ai_answer)
                     else:
-                        st.error("Gagal terhubung dengan model AI.")
+                        ai_answer = "Gagal terhubung dengan model AI."
+                        st.error(ai_answer)
+            st.session_state.messages.append({"role": "assistant", "content": ai_answer})
     st.markdown("</div>", unsafe_allow_html=True)
-
 
 # === Kolom Dashboard Analisis (Kanan) ===
 with col_analysis:
     st.markdown("<div class='main-column'>", unsafe_allow_html=True)
-    st.markdown("<div class='header-title'>Dashboard Analisis Survei Shampo</div>", unsafe_allow_html=True)
-    st.markdown("<div class='header-subtitle'>Insight dari Konsumen Mengenai Preferensi Shampo</div>", unsafe_allow_html=True)
 
     if st.session_state.df is None:
         try:
@@ -242,53 +239,89 @@ with col_analysis:
                 column_mapping = {sheet_col: internal_name for sheet_col in df_loaded.columns for expected_col, internal_name in EXPECTED_COLUMNS.items() if expected_col.strip().lower() in sheet_col.lower()}
                 df_loaded = df_loaded.rename(columns=column_mapping)
                 st.session_state.df = df_loaded
-                
-                mapped_columns = set(df_loaded.columns)
-                if all(col in mapped_columns for col in EXPECTED_COLUMNS.values()):
+                if all(col in set(df_loaded.columns) for col in EXPECTED_COLUMNS.values()):
                     st.session_state.data_loaded_successfully = True
                 else:
-                    missing_cols = [k for k, v in EXPECTED_COLUMNS.items() if v not in mapped_columns]
-                    st.error(f"Gagal memetakan kolom: {', '.join(missing_cols)}. Periksa nama kolom di Google Sheets.")
+                    missing_cols = [k for k, v in EXPECTED_COLUMNS.items() if v not in set(df_loaded.columns)]
+                    st.error(f"Gagal memetakan kolom: {', '.join(missing_cols)}. Periksa nama kolom.")
                     st.stop()
         except Exception as e:
-            st.error(f"Gagal memuat data dari Google Sheets. Pastikan link publik dan nama sheet benar. Error: {e}")
+            st.error(f"Gagal memuat data dari Google Sheets. Error: {e}")
             st.stop()
     
     df = st.session_state.df
 
     if st.session_state.data_loaded_successfully:
+        # --- Bagian Kartu KPI ---
+        kpi1, kpi2, kpi3 = st.columns(3)
+        
+        # KPI 1: Total Responden
+        total_responden = len(df)
+        kpi1.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-icon">👥</div>
+            <div class="kpi-value blue">{total_responden}</div>
+            <div class="kpi-label">Total Responden</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # KPI 2: Merek Teratas
+        all_brands_list = [brand.strip() for brand in re.split(r'[,;]+', ", ".join(df["merek_diketahui"].dropna().astype(str)) + ", " + ", ".join(df["merek_digunakan"].dropna().astype(str)).lower()) if brand.strip()]
+        merek_teratas = Counter(all_brands_list).most_common(1)[0][0].title() if all_brands_list else "N/A"
+        kpi2.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-icon">🏆</div>
+            <div class="kpi-value yellow">{merek_teratas}</div>
+            <div class="kpi-label">Merek Terpopuler</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # KPI 3: Sentimen Positif TRESemmé
+        if "persepsi_tresemme" in df.columns:
+            if "sentimen_tresemme" not in df.columns:
+                 df["sentimen_tresemme"] = df["persepsi_tresemme"].apply(lambda x: analyze_sentiment(str(x)) if pd.notna(x) else "Netral")
+            sentimen_baik = df["sentimen_tresemme"].value_counts().get('Baik', 0)
+        else:
+            sentimen_baik = 0
+        kpi3.markdown(f"""
+        <div class="kpi-card">
+            <div class="kpi-icon">😊</div>
+            <div class="kpi-value">{sentimen_baik}</div>
+            <div class="kpi-label">Sentimen Baik TRESemmé</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("<hr style='margin: 2rem 0; border-color: #E2E8F0;'>", unsafe_allow_html=True)
+        
+        # --- Judul Utama ---
+        st.markdown("<div class='header-title'>Dashboard Analisis Survei Shampo</div>", unsafe_allow_html=True)
+        st.markdown("<div class='header-subtitle'>Insight dari Konsumen Mengenai Preferensi Shampo</div>", unsafe_allow_html=True)
+
+        # --- Bagian Analisis Detail ---
         with st.expander("⭐ Merek Terpopuler: Dikenal vs Digunakan", expanded=True):
-            all_brands_text = ", ".join(df["merek_diketahui"].dropna().astype(str)) + ", " + ", ".join(df["merek_digunakan"].dropna().astype(str))
-            all_brands_list = [brand.strip() for brand in re.split(r'[,;]+', all_brands_text.lower()) if brand.strip()]
             if all_brands_list:
                 create_wordcloud(" ".join(all_brands_list), "Peta Popularitas Merek Shampo")
-                top_10_brands = Counter(all_brands_list).most_common(10)
                 st.subheader("Top 10 Merek Paling Sering Disebut")
-                st.dataframe(pd.DataFrame(top_10_brands, columns=["Merek", "Frekuensi"]), use_container_width=True)
+                st.dataframe(pd.DataFrame(Counter(all_brands_list).most_common(10), columns=["Merek", "Frekuensi"]), use_container_width=True)
             else:
                 st.info("Tidak ada data merek untuk dianalisis.")
 
         with st.expander("💡 Persepsi Terhadap TRESemmé (Analisis Sentimen AI)"):
             if "persepsi_tresemme" in df.columns and not df["persepsi_tresemme"].isnull().all():
-                with st.spinner("Menganalisis sentimen TRESemmé..."):
-                    df["sentimen_tresemme"] = df["persepsi_tresemme"].apply(lambda x: analyze_sentiment(str(x)) if pd.notna(x) else "Netral")
                 sentiment_counts = df["sentimen_tresemme"].value_counts()
-                
                 fig, ax = plt.subplots()
                 sentiment_counts.plot(kind='bar', ax=ax, color=['#22C55E', '#EF4444', '#94A3B8'])
                 ax.set_title("Distribusi Sentimen Terhadap TRESemmé", fontsize=14, fontweight='bold', color='#334155')
                 ax.set_ylabel("Jumlah Responden", fontsize=12, color='#475569')
                 ax.tick_params(axis='x', rotation=0, colors='#475569')
-                ax.spines['top'].set_visible(False)
-                ax.spines['right'].set_visible(False)
+                ax.spines['top'].set_visible(False); ax.spines['right'].set_visible(False)
                 st.pyplot(fig)
             else:
                 st.info("Tidak ada data persepsi TRESemmé untuk dianalisis.")
 
         with st.expander("👎 Poin Negatif Mengenai Shampo CLEAR"):
             if "tidak_suka_clear" in df.columns and not df["tidak_suka_clear"].isnull().all():
-                text_dislikes = " ".join(df["tidak_suka_clear"].dropna().astype(str))
-                create_wordcloud(text_dislikes, "Kata Kunci Keluhan Terhadap CLEAR")
+                create_wordcloud(" ".join(df["tidak_suka_clear"].dropna().astype(str)), "Kata Kunci Keluhan Terhadap CLEAR")
             else:
                 st.info("Tidak ada data keluhan mengenai CLEAR.")
 
@@ -301,9 +334,8 @@ with col_analysis:
                     keyword_counts = {key: all_reasons.lower().count(key) for key in keywords}
                     filtered_counts = {k: v for k, v in keyword_counts.items() if v > 0}
                     if filtered_counts:
-                        keyword_df = pd.DataFrame(list(filtered_counts.items()), columns=["Faktor", "Frekuensi"]).sort_values(by="Frekuensi", ascending=False)
                         st.subheader("Faktor yang Paling Sering Disebut")
-                        st.dataframe(keyword_df, use_container_width=True)
+                        st.dataframe(pd.DataFrame(list(filtered_counts.items()), columns=["Faktor", "Frekuensi"]).sort_values(by="Frekuensi", ascending=False), use_container_width=True)
                 else:
                     st.warning("Data alasan favorit terlalu sedikit untuk dianalisis.")
             else:
