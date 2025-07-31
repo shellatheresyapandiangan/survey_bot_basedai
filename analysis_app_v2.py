@@ -7,11 +7,13 @@ import json
 import requests
 import re
 import io
+import time
 
 # Token API dari user (digunakan untuk panggilan AI)
-# Pastikan token ini valid untuk layanan Gemini API.
-API_KEY = "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"
-API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent"
+# Token ini adalah token Groq. Kode telah diperbarui untuk menggunakan API Groq.
+API_KEY = "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"
+# URL API Groq yang kompatibel dengan format OpenAI
+GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 # --- Konfigurasi Halaman Streamlit ---
 st.set_page_config(
@@ -20,32 +22,29 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- Fungsi untuk memanggil model AI ---
+# --- Fungsi untuk memanggil model AI (Groq API) ---
 def call_llm(prompt, api_key):
     """
-    Memanggil Gemini API untuk mendapatkan ringkasan atau analisis.
+    Memanggil Groq API untuk mendapatkan ringkasan atau analisis.
     """
     headers = {
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
     payload = {
-        "contents": [
-            {
-                "role": "user",
-                "parts": [
-                    {"text": prompt}
-                ]
-            }
+        "model": "gemma-7b-it", # Menggunakan model yang tersedia di Groq
+        "messages": [
+            {"role": "user", "content": prompt}
         ]
     }
     
     try:
-        response = requests.post(f"{API_URL}?key={api_key}", headers=headers, data=json.dumps(payload))
+        response = requests.post(GROQ_API_URL, headers=headers, data=json.dumps(payload))
         response.raise_for_status()  # Angkat pengecualian untuk status kode error (4xx atau 5xx)
         result = response.json()
-        return result["candidates"][0]["content"]["parts"][0]["text"]
+        return result["choices"][0]["message"]["content"]
     except requests.exceptions.HTTPError as http_err:
-        st.error(f"Kesalahan HTTP: {http_err} - Pastikan token API valid.")
+        st.error(f"Kesalahan HTTP: {http_err} - Pastikan token API valid dan memiliki akses ke Groq API.")
     except (requests.exceptions.RequestException, KeyError, IndexError) as err:
         st.error(f"Terjadi kesalahan saat memproses respons API: {err}")
     return "Respons tidak dapat diproses."
@@ -60,7 +59,7 @@ def create_wordcloud(text, title):
         height=400, 
         background_color="white", 
         max_words=50,
-        regexp=r"\w+" # Memastikan hanya kata-kata yang dihitung
+        regexp=r"\w+"
     ).generate(text)
     
     fig, ax = plt.subplots(figsize=(10, 5))
@@ -102,10 +101,10 @@ st.markdown("---")
 # Ganti 'SHEET_ID' dengan ID dari URL Google Sheets Anda
 # Ganti 'SHEET_NAME' jika nama sheet Anda berbeda
 SHEET_ID = "1Mp7KYO4w6GRUqvuTr4IRNeB7iy8SIZjSrLZmbEAm4GM"
-SHEET_NAME = "Sheet1" # Asumsi nama sheet, ganti jika berbeda
+SHEET_NAME = "Sheet1"
 google_sheets_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
 
-# Mengubah nama kolom agar sesuai dengan data Google Sheets dan lebih mudah diakses.
+# Mengubah nama kolom agar sesuai dengan data Google Sheets
 COLUMN_MAP = {
     "Apa merek shampo yang Anda ketahui": "merek_diketahui",
     "Apa merek shampo yang Anda gunakan": "merek_digunakan",
@@ -118,8 +117,11 @@ try:
     with st.spinner("Mengambil data dari Google Sheets..."):
         df = pd.read_csv(google_sheets_url)
     
-    st.success("Data berhasil dimuat!")
-    st.dataframe(df)
+    # Memeriksa apakah semua kolom yang diharapkan ada di dataframe
+    missing_columns = [col for col in COLUMN_MAP.keys() if col not in df.columns]
+    if missing_columns:
+        st.error(f"Terjadi kesalahan saat memproses data: Kolom berikut tidak ditemukan: {missing_columns}. Mohon periksa kembali nama kolom di Google Sheets Anda.")
+        st.stop()
 
     # Mengubah nama kolom agar mudah diakses
     df = df.rename(columns=COLUMN_MAP)
@@ -131,22 +133,21 @@ try:
     # 1. WordCloud dan Top 10 Merek
     st.markdown("### 1. Merek Shampo yang Diketahui & Digunakan")
     
-    if "merek_diketahui" in df.columns and "merek_digunakan" in df.columns:
-        all_brands = (
-            ", ".join(df["merek_diketahui"].dropna().astype(str)) + ", " +
-            ", ".join(df["merek_digunakan"].dropna().astype(str))
-        ).lower()
-        all_brands_list = [brand.strip() for brand in re.split(r'[,;]+', all_brands) if brand.strip()]
-        
-        if all_brands_list:
-            create_wordcloud(" ".join(all_brands_list), "WordCloud Merek Shampo Terkenal")
-            brand_counts = Counter(all_brands_list)
-            top_10_brands = brand_counts.most_common(10)
-            st.subheader("Top 10 Merek Shampo")
-            top_10_df = pd.DataFrame(top_10_brands, columns=["Merek", "Frekuensi"])
-            st.dataframe(top_10_df)
+    all_brands = (
+        ", ".join(df["merek_diketahui"].dropna().astype(str)) + ", " +
+        ", ".join(df["merek_digunakan"].dropna().astype(str))
+    ).lower()
+    all_brands_list = [brand.strip() for brand in re.split(r'[,;]+', all_brands) if brand.strip()]
+    
+    if all_brands_list:
+        create_wordcloud(" ".join(all_brands_list), "WordCloud Merek Shampo Terkenal")
+        brand_counts = Counter(all_brands_list)
+        top_10_brands = brand_counts.most_common(10)
+        st.subheader("Top 10 Merek Shampo")
+        top_10_df = pd.DataFrame(top_10_brands, columns=["Merek", "Frekuensi"])
+        st.dataframe(top_10_df)
     else:
-        st.info("Kolom 'merek_diketahui' atau 'merek_digunakan' tidak ditemukan di data.")
+        st.info("Tidak ada data merek untuk dianalisis.")
 
     st.markdown("---")
 
@@ -210,4 +211,4 @@ try:
 except requests.exceptions.HTTPError as e:
     st.error(f"Gagal memuat data dari Google Sheets. Mohon pastikan link publik dan nama sheet sudah benar. Kesalahan: {e}")
 except Exception as e:
-    st.error(f"Terjadi kesalahan saat memproses data: {e}")
+    st.error(f"Terjadi kesalahan saat memproses data: {e}. Mohon periksa kembali struktur kolom di Google Sheets Anda.")
