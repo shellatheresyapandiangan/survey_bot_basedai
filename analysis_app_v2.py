@@ -3,6 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from wordcloud import WordCloud
 from collections import Counter
+import json
 import requests
 import re
 import io
@@ -20,6 +21,7 @@ st.markdown("""
 <style>
 .stApp {
     background-color: #f0f2f6;
+    color: #333333;
 }
 .header-title {
     font-size: 2.5em;
@@ -31,25 +33,68 @@ st.markdown("""
     color: #4a4a4a;
     font-weight: 300;
 }
-.card-header {
-    background-color: #e3f2fd;
-    padding: 10px;
-    border-radius: 8px;
-    margin-bottom: 10px;
-    font-weight: bold;
-    color: #1a237e;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
 .stExpander {
     border: 1px solid #e0e0e0;
-    border-radius: 8px;
+    border-radius: 12px;
     padding: 15px;
-    margin-bottom: 15px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    margin-bottom: 20px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
     background-color: #ffffff;
+    transition: box-shadow 0.3s ease-in-out;
+}
+.stExpander:hover {
+    box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+}
+.stButton>button {
+    background-color: #4CAF50;
+    color: white;
+    font-weight: bold;
+    border-radius: 8px;
+    padding: 10px 20px;
+    border: none;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    transition: background-color 0.3s ease, transform 0.3s ease;
+}
+.stButton>button:hover {
+    background-color: #45a049;
+    transform: translateY(-2px);
 }
 </style>
 """, unsafe_allow_html=True)
+
+# API Gemini
+API_KEY = ""
+API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent"
+
+# --- Fungsi untuk memanggil model AI (Gemini API) ---
+def call_llm(prompt, api_key):
+    """
+    Memanggil Gemini API untuk mendapatkan ringkasan atau analisis.
+    """
+    headers = {
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": [
+                    {"text": prompt}
+                ]
+            }
+        ]
+    }
+    
+    try:
+        response = requests.post(f"{API_URL}?key={api_key}", headers=headers, data=json.dumps(payload))
+        response.raise_for_status()
+        result = response.json()
+        return result["candidates"][0]["content"]["parts"][0]["text"]
+    except requests.exceptions.HTTPError as http_err:
+        st.error(f"Kesalahan HTTP: {http_err} - Pastikan token API valid.")
+    except (requests.exceptions.RequestException, KeyError, IndexError) as err:
+        st.error(f"Terjadi kesalahan saat memproses respons API: {err}")
+    return "Respons tidak dapat diproses."
 
 # --- Fungsi untuk membuat WordCloud ---
 def create_wordcloud(text, title):
@@ -69,6 +114,30 @@ def create_wordcloud(text, title):
     ax.axis("off")
     st.subheader(title)
     st.pyplot(fig)
+
+# --- Fungsi untuk menganalisis sentimen ---
+def analyze_sentiment(text, api_key):
+    """
+    Menggunakan LLM untuk mengkategorikan sentimen.
+    """
+    prompt = f"""
+    Klasifikasikan sentimen dari teks berikut:
+    "{text}"
+    
+    Pilih salah satu dari kategori berikut: 'Baik', 'Buruk', atau 'Netral'.
+    Berikan hanya satu kata dari kategori tersebut sebagai jawaban.
+    """
+    response = call_llm(prompt, api_key)
+    
+    if response:
+        sentiment = response.strip().upper()
+        if "BAIK" in sentiment:
+            return "Baik"
+        elif "BURUK" in sentiment:
+            return "Buruk"
+        elif "NETRAL" in sentiment:
+            return "Netral"
+    return "Netral"
 
 # --- Header Aplikasi ---
 st.markdown("<div class='header-title'>Analisis Data Survei Shampo</div>", unsafe_allow_html=True)
@@ -131,11 +200,21 @@ try:
         else:
             st.info("Tidak ada data merek untuk dianalisis.")
 
-    # Bagian 2: Persepsi Terkait Shampo TRESemmé
-    with st.expander("2. Persepsi Terkait Shampo TRESemmé"):
+    # Bagian 2: Persepsi Terkait Shampo TRESemmé (AI-Powered)
+    with st.expander("2. Persepsi Terkait Shampo TRESemmé (AI-Powered)"):
         if "persepsi_tresemme" in df.columns and not df["persepsi_tresemme"].isnull().all():
-            text_persepsi = " ".join(df["persepsi_tresemme"].dropna().astype(str))
-            create_wordcloud(text_persepsi, "WordCloud Persepsi Terkait Shampo TRESemmé")
+            with st.spinner("Menganalisis sentimen..."):
+                df["sentimen_tresemme"] = df["persepsi_tresemme"].apply(lambda x: analyze_sentiment(str(x), API_KEY) if pd.notna(x) else "Netral")
+            sentiment_counts = df["sentimen_tresemme"].value_counts()
+            
+            fig, ax = plt.subplots()
+            sentiment_counts.plot(kind='bar', color=['#4CAF50', '#f44336', '#9e9e9e'])
+            ax.set_title("Analisis Sentimen TRESemmé")
+            ax.set_ylabel("Jumlah Responden")
+            ax.tick_params(axis='x', rotation=0)
+            st.pyplot(fig)
+            
+            st.dataframe(sentiment_counts)
         else:
             st.info("Tidak ada data untuk analisis persepsi TRESemmé.")
     
@@ -147,7 +226,7 @@ try:
         else:
             st.info("Tidak ada data untuk analisis alasan tidak suka CLEAR.")
     
-    # Bagian 4: Prioritas Saat Memilih Shampo
+    # Bagian 4: Prioritas dalam Memilih Shampo
     with st.expander("4. Prioritas dalam Memilih Shampo"):
         if "favorit_shampo" in df.columns and not df["favorit_shampo"].isnull().all():
             keywords = ["bungkus", "wangi", "kemasan", "aroma", "tekstur", "harga"]
@@ -170,13 +249,46 @@ try:
         else:
             st.info("Tidak ada data untuk analisis prioritas.")
 
-    # Bagian 5: Ringkasan Alasan Favorit Shampo
-    with st.expander("5. Ringkasan Alasan Favorit Shampo"):
+    # Bagian 5: Ringkasan Alasan Favorit Shampo (AI-Powered)
+    with st.expander("5. Ringkasan Alasan Favorit Shampo (AI-Powered)"):
         if "favorit_shampo" in df.columns and not df["favorit_shampo"].isnull().all():
             all_reasons = " ".join(df["favorit_shampo"].dropna().astype(str))
-            create_wordcloud(all_reasons, "WordCloud Alasan Favorit Shampo")
+            with st.spinner("Meringkas alasan-alasan favorit dengan AI..."):
+                prompt_summary = f"""
+                Berikut adalah kumpulan alasan orang memilih shampo favorit mereka:
+                "{all_reasons}"
+                
+                Buatlah ringkasan singkat dalam bahasa Indonesia mengenai alasan-alasan utama yang sering disebutkan.
+                """
+                summary_text = call_llm(prompt_summary, API_KEY)
+                if summary_text:
+                    st.info(summary_text)
         else:
             st.info("Tidak ada data untuk ringkasan alasan favorit.")
+            
+    # Bagian 6: Tanya AI tentang Data Survei (Fitur GPT)
+    with st.expander("6. Tanya AI tentang Data Survei"):
+        st.markdown("Masukkan pertanyaan spesifik Anda terkait data survei ini.")
+        user_question = st.text_area("Pertanyaan Anda:")
+        if st.button("Tanyakan ke AI"):
+            if user_question:
+                with st.spinner("AI sedang memproses pertanyaan Anda..."):
+                    data_text = df.to_string()
+                    prompt_qa = f"""
+                    Anda adalah seorang analis data ahli. Berdasarkan data survei berikut:
+                    
+                    {data_text}
+                    
+                    Jawab pertanyaan berikut:
+                    "{user_question}"
+                    
+                    Berikan jawaban yang ringkas dan informatif.
+                    """
+                    ai_answer = call_llm(prompt_qa, API_KEY)
+                    if ai_answer:
+                        st.info(ai_answer)
+            else:
+                st.warning("Mohon masukkan pertanyaan terlebih dahulu.")
 
 except requests.exceptions.HTTPError as e:
     st.error(f"Gagal memuat data dari Google Sheets. Mohon pastikan link publik dan nama sheet sudah benar. Kesalahan: {e}")
