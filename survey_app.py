@@ -8,7 +8,7 @@ import io
 # --- Konfigurasi Halaman Streamlit ---
 st.set_page_config(
     page_title="Aplikasi Survei Preferensi Shampo",
-    page_icon="�",
+    page_icon="🧴",
     layout="centered"
 )
 
@@ -151,4 +151,3 @@ if submit_button:
                 st.error(f"Gagal mengunggah file. Status kode: {status_code}. Pastikan repositori dan branch valid.")
         except Exception as e:
             st.error(f"Terjadi kesalahan: {e}")
-�
