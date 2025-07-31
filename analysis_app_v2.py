@@ -1,7 +1,7 @@
 # ==============================================================================
 # Aplikasi Analisis Data Survei Shampo
 # Menggunakan LangChain & Groq API
-# Versi: Desain Profesional v2
+# Versi: Desain Profesional v3 (Perbaikan Tata Letak)
 # ==============================================================================
 
 # --- 1. Impor Library ---
@@ -231,14 +231,8 @@ with col_chat:
 
 # === Kolom Dashboard Analisis (Kanan) ===
 with col_analysis:
-    st.markdown("<div class='main-column'>", unsafe_allow_html=True)
-
-    # --- Judul Utama ---
-    st.markdown("<div class='header-title'>Dashboard Analisis Survei Shampo</div>", unsafe_allow_html=True)
-    st.markdown("<div class='header-subtitle'>Ringkasan Eksekutif dari Preferensi Konsumen</div>", unsafe_allow_html=True)
-
-    # --- Logika Pemuatan Data ---
-    if st.session_state.df is None:
+    # --- Logika Pemuatan Data (Dijalankan Pertama) ---
+    if not st.session_state.data_loaded_successfully:
         try:
             with st.spinner("Menghubungkan ke sumber data..."):
                 df_loaded = pd.read_csv(GOOGLE_SHEETS_URL)
@@ -255,15 +249,19 @@ with col_analysis:
         except Exception as e:
             st.error(f"Gagal memuat data dari Google Sheets. Error: {e}")
             st.stop()
-    
-    df = st.session_state.df
 
-    # --- Tampilkan Konten Dashboard Setelah Data Siap ---
+    # --- Tampilkan Konten Dashboard HANYA JIKA Data Siap ---
     if st.session_state.data_loaded_successfully:
+        df = st.session_state.df
+        st.markdown("<div class='main-column'>", unsafe_allow_html=True)
+
+        # --- Judul Utama ---
+        st.markdown("<div class='header-title'>Dashboard Analisis Survei Shampo</div>", unsafe_allow_html=True)
+        st.markdown("<div class='header-subtitle'>Ringkasan Eksekutif dari Preferensi Konsumen</div>", unsafe_allow_html=True)
+
         # --- Bagian Kartu KPI ---
         kpi1, kpi2, kpi3 = st.columns(3)
         
-        # KPI 1: Total Responden
         total_responden = len(df)
         kpi1.markdown(f"""
         <div class="kpi-card">
@@ -273,7 +271,6 @@ with col_analysis:
         </div>
         """, unsafe_allow_html=True)
 
-        # KPI 2: Merek Teratas
         all_brands_list = [brand.strip() for brand in re.split(r'[,;]+', ", ".join(df["merek_diketahui"].dropna().astype(str)) + ", " + ", ".join(df["merek_digunakan"].dropna().astype(str)).lower()) if brand.strip()]
         merek_teratas = Counter(all_brands_list).most_common(1)[0][0].title() if all_brands_list else "N/A"
         kpi2.markdown(f"""
@@ -284,13 +281,9 @@ with col_analysis:
         </div>
         """, unsafe_allow_html=True)
 
-        # KPI 3: Sentimen Positif TRESemmé
-        if "persepsi_tresemme" in df.columns:
-            if "sentimen_tresemme" not in df.columns:
-                 df["sentimen_tresemme"] = df["persepsi_tresemme"].apply(lambda x: analyze_sentiment(str(x)) if pd.notna(x) else "Netral")
-            sentimen_baik = df["sentimen_tresemme"].value_counts().get('Baik', 0)
-        else:
-            sentimen_baik = 0
+        if "sentimen_tresemme" not in df.columns:
+            df["sentimen_tresemme"] = df["persepsi_tresemme"].apply(lambda x: analyze_sentiment(str(x)) if pd.notna(x) else "Netral")
+        sentimen_baik = df["sentimen_tresemme"].value_counts().get('Baik', 0)
         kpi3.markdown(f"""
         <div class="kpi-card">
             <div class="kpi-icon">👍</div>
@@ -344,4 +337,4 @@ with col_analysis:
                     st.warning("Data alasan favorit terlalu sedikit untuk dianalisis.")
             else:
                 st.info("Tidak ada data alasan favorit untuk dianalisis.")
-    st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
