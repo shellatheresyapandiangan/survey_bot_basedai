@@ -1,7 +1,7 @@
 # ==============================================================================
 # Aplikasi Analisis Data Survei Shampo
 # Menggunakan LangChain & Groq API
-# Versi: Desain UI/UX Premium+ (dengan Kartu KPI)
+# Versi: Desain Profesional
 # ==============================================================================
 
 # --- 1. Impor Library ---
@@ -17,11 +17,11 @@ from langchain.prompts import PromptTemplate
 # --- 2. Konfigurasi Halaman & Desain (CSS) ---
 st.set_page_config(
     page_title="Dashboard Analisis Shampo",
-    page_icon="✨",
+    page_icon="📊",
     layout="wide"
 )
 
-# --- Desain UI/UX Premium dengan CSS ---
+# --- Desain UI/UX Profesional dengan CSS ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
@@ -46,16 +46,16 @@ st.markdown("""
 
     /* --- Tipografi --- */
     .header-title {
-        font-size: 2.8em;
+        font-size: 2.5em;
         font-weight: 700;
         color: #1E293B; /* Biru tua keabu-abuan */
-        padding-bottom: 0.2rem;
+        padding-bottom: 0.1rem;
     }
     .header-subtitle {
-        font-size: 1.2em;
+        font-size: 1.1em;
         color: #64748B; /* Abu-abu netral */
         font-weight: 400;
-        padding-bottom: 1.5rem;
+        padding-bottom: 2rem;
     }
     h3 {
         color: #334155;
@@ -64,17 +64,17 @@ st.markdown("""
 
     /* --- Kartu KPI --- */
     .kpi-card {
-        background: linear-gradient(135deg, #FFFFFF 0%, #F9FAFB 100%);
+        background: #F8FAFC;
         border-radius: 15px;
         padding: 1.5rem;
         text-align: center;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
         border: 1px solid #E2E8F0;
         transition: transform 0.3s ease, box-shadow 0.3s ease;
     }
     .kpi-card:hover {
         transform: translateY(-5px);
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.07);
     }
     .kpi-value {
         font-size: 2.5em;
@@ -90,8 +90,9 @@ st.markdown("""
         margin-top: 0.5rem;
     }
     .kpi-icon {
-        font-size: 1.5em;
-        margin-bottom: 1rem;
+        font-size: 1.8em;
+        margin-bottom: 0.8rem;
+        color: #94A3B8;
     }
 
     /* --- Expander / Kartu Analisis --- */
@@ -99,8 +100,8 @@ st.markdown("""
         border: none;
         border-radius: 15px;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-        background-color: #F8FAFC; /* Warna kartu sedikit berbeda */
-        margin-bottom: 1.5rem;
+        background-color: #F8FAFC;
+        margin-top: 1.5rem;
     }
     .stExpander [data-testid="stExpanderHeader"] {
         font-size: 1.1em;
@@ -113,12 +114,12 @@ st.markdown("""
 
     /* --- Chat Interface --- */
     .st-chat-message-user {
-        background-color: #E0F2FE; /* Biru muda untuk user */
+        background-color: #E0F2FE;
         border-radius: 15px;
         padding: 12px;
     }
     .st-chat-message-assistant {
-        background-color: #F1F5F9; /* Abu-abu sangat muda untuk asisten */
+        background-color: #F1F5F9;
         border-radius: 15px;
         padding: 12px;
     }
@@ -252,6 +253,10 @@ with col_analysis:
     df = st.session_state.df
 
     if st.session_state.data_loaded_successfully:
+        # --- Judul Utama ---
+        st.markdown("<div class='header-title'>Dashboard Analisis Survei Shampo</div>", unsafe_allow_html=True)
+        st.markdown("<div class='header-subtitle'>Ringkasan Eksekutif dari Preferensi Konsumen</div>", unsafe_allow_html=True)
+
         # --- Bagian Kartu KPI ---
         kpi1, kpi2, kpi3 = st.columns(3)
         
@@ -285,19 +290,15 @@ with col_analysis:
             sentimen_baik = 0
         kpi3.markdown(f"""
         <div class="kpi-card">
-            <div class="kpi-icon">😊</div>
+            <div class="kpi-icon">👍</div>
             <div class="kpi-value">{sentimen_baik}</div>
             <div class="kpi-label">Sentimen Baik TRESemmé</div>
         </div>
         """, unsafe_allow_html=True)
         
-        st.markdown("<hr style='margin: 2rem 0; border-color: #E2E8F0;'>", unsafe_allow_html=True)
-        
-        # --- Judul Utama ---
-        st.markdown("<div class='header-title'>Dashboard Analisis Survei Shampo</div>", unsafe_allow_html=True)
-        st.markdown("<div class='header-subtitle'>Insight dari Konsumen Mengenai Preferensi Shampo</div>", unsafe_allow_html=True)
-
         # --- Bagian Analisis Detail ---
+        st.header("Analisis Mendalam", anchor=False, divider="rainbow")
+        
         with st.expander("⭐ Merek Terpopuler: Dikenal vs Digunakan", expanded=True):
             if all_brands_list:
                 create_wordcloud(" ".join(all_brands_list), "Peta Popularitas Merek Shampo")
