@@ -10,6 +10,7 @@ import io
 import time
 
 # Token API dari user (digunakan untuk panggilan AI)
+# Token ini adalah token Groq. Kode telah diperbarui untuk menggunakan API Groq.
 API_KEY = "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"
 # URL API Groq yang kompatibel dengan format OpenAI
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -104,8 +105,7 @@ SHEET_NAME = "Sheet1"
 google_sheets_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={SHEET_NAME}"
 
 # Mengubah nama kolom agar sesuai dengan data Google Sheets
-COLUMN_MAP = {
-    "Timestamp": "timestamp", # Kolom 'Timestamp' dari Google Forms
+EXPECTED_COLUMNS = {
     "Apa merek shampo yang Anda ketahui": "merek_diketahui",
     "Apa merek shampo yang Anda gunakan": "merek_digunakan",
     "Bagaimana persepsi anda terkait shampo tresemme": "persepsi_tresemme",
@@ -120,15 +120,22 @@ try:
     # Normalisasi nama kolom untuk menghindari kesalahan spasi atau karakter tak terlihat
     df.columns = [col.strip() for col in df.columns]
     
+    # Mencari nama kolom yang cocok dari EXPECTED_COLUMNS
+    column_mapping = {}
+    for sheet_col in df.columns:
+        for expected_col, internal_name in EXPECTED_COLUMNS.items():
+            if expected_col.strip().lower() in sheet_col.lower():
+                column_mapping[sheet_col] = internal_name
+    
     # Mengubah nama kolom agar mudah diakses
-    df = df.rename(columns=COLUMN_MAP)
+    df = df.rename(columns=column_mapping)
 
-    # Memeriksa apakah semua kolom yang diharapkan ada di dataframe
-    missing_columns = [col for col in COLUMN_MAP.values() if col not in df.columns]
-    if missing_columns:
-        st.error(f"Terjadi kesalahan saat memproses data: Kolom berikut tidak ditemukan: {missing_columns}. Mohon periksa kembali nama kolom di Google Sheets Anda.")
+    # Memeriksa apakah semua kolom yang diharapkan berhasil dipetakan
+    mapped_columns = set(column_mapping.values())
+    if not all(col in mapped_columns for col in EXPECTED_COLUMNS.values()):
+        st.error("Terjadi kesalahan saat memproses data: Tidak semua kolom survei ditemukan. Mohon periksa kembali nama kolom di Google Sheets Anda.")
         st.stop()
-
+        
     # --- Analisis Dimulai ---
     st.markdown("---")
     st.header("Hasil Analisis")
@@ -179,14 +186,17 @@ try:
 
     # 4. Prioritas Saat Memilih Shampo
     st.markdown("### 4. Prioritas dalam Memilih Shampo")
-    keywords = ["bungkus", "wangi", "kemasan", "aroma", "tekstur", "harga"]
-    priority_counts = {keyword: 0 for keyword in keywords}
     if "favorit_shampo" in df.columns and not df["favorit_shampo"].isnull().all():
+        # Memetakan kata kunci dengan prioritas
+        keywords = ["bungkus", "wangi", "kemasan", "aroma", "tekstur", "harga"]
+        priority_counts = {keyword: 0 for keyword in keywords}
+        
         for alasan in df["favorit_shampo"].dropna().astype(str):
             alasan_lower = alasan.lower()
             for keyword in keywords:
                 if keyword in alasan_lower:
                     priority_counts[keyword] += 1
+        
         priorities_df = pd.DataFrame(list(priority_counts.items()), columns=["Prioritas", "Frekuensi"])
         st.bar_chart(priorities_df, x="Prioritas", y="Frekuensi")
     else:
