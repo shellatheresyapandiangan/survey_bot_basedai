@@ -10,8 +10,10 @@ import io
 import time
 
 # Token API dari user (digunakan untuk panggilan AI)
-# Token ini adalah token Groq. Kode telah diperbarui untuk menggunakan API Groq.
-API_KEY = "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"
+#
+# PENTING: Anda harus mengganti nilai ini dengan token Groq API yang valid dari akun Anda.
+# Token ini adalah token Groq.
+API_KEY = "PASTIKAN_TOKEN_GROQ_BARU_ANDA_DI_SINI"
 # URL API Groq yang kompatibel dengan format OpenAI
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
