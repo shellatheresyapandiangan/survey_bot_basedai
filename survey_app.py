@@ -8,14 +8,19 @@ import io
 # --- Konfigurasi Halaman Streamlit ---
 st.set_page_config(
     page_title="Aplikasi Survei Preferensi Shampo",
-    page_icon="🧴",
+    page_icon="�",
     layout="centered"
 )
 
-# --- Token GitHub dari pengguna ---
+# --- Token GitHub dan Detail Repositori ---
 # Catatan: Ini adalah token yang Anda berikan.
 GITHUB_TOKEN = "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"
 CSV_FILE_PATH = "shampo_survey_responses.csv"
+
+# Detail repositori diisi secara otomatis berdasarkan gambar yang Anda berikan.
+GITHUB_OWNER = "shellatheresyapandiangan"
+GITHUB_REPO = "survey_bot_basedai"
+GITHUB_BRANCH = "main"
 
 # --- Fungsi untuk berinteraksi dengan GitHub API ---
 def get_github_file(owner, repo, file_path, branch):
@@ -69,15 +74,6 @@ st.title("Formulir Survei Preferensi Shampo")
 st.markdown("Silakan jawab pertanyaan di bawah ini untuk membantu kami memahami preferensi Anda.")
 st.markdown("---")
 
-# --- Form untuk Konfigurasi GitHub ---
-st.header("Konfigurasi GitHub")
-with st.expander("Klik untuk memasukkan detail GitHub Anda"):
-    github_owner = st.text_input("Username atau Organisasi GitHub", value="YOUR_GITHUB_USERNAME")
-    github_repo = st.text_input("Nama Repositori GitHub", value="YOUR_REPO_NAME")
-    github_branch = st.text_input("Nama Branch", value="main")
-
-st.markdown("---")
-
 # --- Form untuk Input Data Survei ---
 st.header("Formulir Survei")
 with st.form("shampo_survey_form"):
@@ -112,12 +108,12 @@ with st.form("shampo_survey_form"):
 
 # --- Logika Setelah Submit ---
 if submit_button:
-    if "YOUR_GITHUB_USERNAME" in github_owner or "YOUR_REPO_NAME" in github_repo:
-        st.error("Mohon masukkan detail GitHub yang valid terlebih dahulu.")
+    if "YOUR_GITHUB_USERNAME" in GITHUB_OWNER or "YOUR_REPO_NAME" in GITHUB_REPO:
+        st.error("Mohon ganti detail GitHub di dalam kode terlebih dahulu.")
     else:
         try:
             # Baca data yang sudah ada dari GitHub
-            existing_content = get_github_file(github_owner, github_repo, CSV_FILE_PATH, github_branch)
+            existing_content = get_github_file(GITHUB_OWNER, GITHUB_REPO, CSV_FILE_PATH, GITHUB_BRANCH)
             
             # Buat DataFrame baru dari input
             data_new = {
@@ -143,11 +139,11 @@ if submit_button:
             
             # Unggah ke GitHub
             commit_message = f"Menambahkan data survei pada {pd.to_datetime('now').strftime('%Y-%m-%d %H:%M:%S')}"
-            status_code = push_to_github(github_owner, github_repo, CSV_FILE_PATH, github_branch, new_content, commit_message)
+            status_code = push_to_github(GITHUB_OWNER, GITHUB_REPO, CSV_FILE_PATH, GITHUB_BRANCH, new_content, commit_message)
             
             if status_code in [200, 201]:
                 st.success("🎉 Jawaban berhasil disimpan di repositori GitHub Anda!")
-                github_raw_url = f"https://raw.githubusercontent.com/{github_owner}/{github_repo}/{github_branch}/{CSV_FILE_PATH}"
+                github_raw_url = f"https://raw.githubusercontent.com/{GITHUB_OWNER}/{GITHUB_REPO}/{GITHUB_BRANCH}/{CSV_FILE_PATH}"
                 st.write("URL file CSV yang akan digunakan untuk aplikasi analisis:")
                 st.code(github_raw_url)
                 st.dataframe(df_combined)
@@ -155,3 +151,4 @@ if submit_button:
                 st.error(f"Gagal mengunggah file. Status kode: {status_code}. Pastikan repositori dan branch valid.")
         except Exception as e:
             st.error(f"Terjadi kesalahan: {e}")
+�
