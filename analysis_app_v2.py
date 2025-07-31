@@ -247,12 +247,6 @@ try:
         if "favorit_shampo" in df.columns and not df["favorit_shampo"].isnull().all():
             all_reasons = " ".join(df["favorit_shampo"].dropna().astype(str))
             with st.spinner("Meringkas alasan-alasan favorit dengan AI..."):
-                prompt_summary = f"""
-                Berikut adalah kumpulan alasan orang memilih shampo favorit mereka:
-                "{all_reasons}"
-                
-                Buatlah ringkasan singkat dalam bahasa Indonesia mengenai alasan-alasan utama yang sering disebutkan.
-                """
                 summary_text = generate_summary(all_reasons)
                 if summary_text:
                     st.info(summary_text)
@@ -277,9 +271,14 @@ try:
                     
                     Berikan jawaban yang ringkas dan informatif.
                     """
-                    ai_answer = generate_summary(data_text) # Menggunakan generate_summary untuk menjawab
-                    if ai_answer:
-                        st.info(ai_answer)
+                    llm = get_llm()
+                    if llm:
+                        chain = PromptTemplate.from_template(prompt_qa) | llm
+                        ai_answer = chain.invoke({"context": data_text, "question": user_question}).content
+                        if ai_answer:
+                            st.info(ai_answer)
+                    else:
+                        st.error("Gagal memuat model AI.")
             else:
                 st.warning("Mohon masukkan pertanyaan terlebih dahulu.")
 
