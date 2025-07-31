@@ -276,6 +276,15 @@ try:
                             Pertanyaan: "{user_question}"
                             
                             Berikan jawaban yang ringkas dan informatif dalam Bahasa Indonesia.
+                            
+                            ---
+                            
+                            Contoh Jawaban:
+                            Berdasarkan data, TRESemmé memiliki persepsi yang bervariasi. Responden menganggapnya "Mahal, ngak bagus, kasar" namun di sisi lain ada yang "oke". Ini mengindikasikan adanya segmen pasar yang berbeda. Untuk TRESemmé, strategi pemasaran bisa difokuskan pada peningkatan kualitas produk atau menargetkan segmen yang lebih sensitif terhadap harga.
+                            
+                            ---
+                            
+                            Jawaban Anda:
                             """
                             chain = PromptTemplate.from_template(prompt_qa) | llm
                             ai_answer = chain.invoke({"context": data_text, "question": user_question}).content
@@ -291,3 +300,4 @@ except requests.exceptions.HTTPError as e:
     st.error(f"Gagal memuat data dari Google Sheets. Mohon pastikan link publik dan nama sheet sudah benar. Kesalahan: {e}")
 except Exception as e:
     st.error(f"Terjadi kesalahan saat memproses data: {e}. Mohon periksa kembali struktur kolom di Google Sheets Anda.")
+�
